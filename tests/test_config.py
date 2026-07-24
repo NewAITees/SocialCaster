@@ -1,0 +1,23 @@
+from pathlib import Path
+
+import pytest
+
+from social_caster.config import Settings
+
+
+def test_settings_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BUFFER_API_KEY", "key")
+    monkeypatch.setenv("BUFFER_INSTAGRAM_CHANNEL_ID", "instagram")
+    monkeypatch.setenv("BUFFER_X_CHANNEL_ID", "x")
+
+    settings = Settings.from_env()
+
+    assert settings.buffer_api_key == "key"
+    assert settings.database_path == Path("database/posts.db")
+
+
+def test_settings_require_buffer_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("BUFFER_API_KEY", raising=False)
+
+    with pytest.raises(ValueError, match="BUFFER_API_KEY"):
+        Settings.from_env()

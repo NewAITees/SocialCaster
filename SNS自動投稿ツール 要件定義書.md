@@ -1,0 +1,251 @@
+# SNS自動投稿ツール 要件定義書（MVP）
+
+## 目的
+
+InstagramとX（Twitter）へ画像付き投稿を自動で配信する。
+
+投稿内容はローカルPC上で管理し、一度登録した投稿を指定日時に自動配信できるようにする。
+
+運用はできるだけ無料サービスを利用し、将来的に他SNSへの拡張を考慮した設計とする。
+
+---
+
+# システム構成
+
+```text
+投稿データ(SQLite)
+        │
+        ▼
+投稿サービス(Python)
+        │
+        ├── Buffer（X）
+        └── Buffer（Instagram）
+```
+
+※ 将来的にInstagramだけMeta Business Suiteへ変更できるように設計する。
+
+---
+
+# 対応SNS
+
+初期対応
+
+* Instagram
+* X（Twitter）
+
+将来追加予定
+
+* Threads
+* Pinterest
+* Bluesky
+* Facebook
+
+---
+
+# 投稿データ
+
+画像はSQLiteへ保存しない。
+
+```text
+/images/
+    image001.png
+    image002.png
+```
+
+SQLiteには画像パスのみ保存する。
+
+## postsテーブル
+
+| 項目               | 内容           |
+| ---------------- | ------------ |
+| id               | 投稿ID         |
+| image_path       | 画像ファイルパス     |
+| instagram_text   | Instagram用本文 |
+| twitter_text     | X用本文         |
+| publish_at       | 投稿予定日時       |
+| instagram_status | 待機・投稿済・失敗    |
+| twitter_status   | 待機・投稿済・失敗    |
+| created_at       | 登録日時         |
+| updated_at       | 更新日時         |
+
+---
+
+# 投稿方式
+
+InstagramとXは別々に管理する。
+
+Instagram
+
+* 長文可
+* ハッシュタグ多め
+
+X
+
+* 短文
+* X向け文章
+* 必要ならInstagramプロフィールURLを付与
+
+---
+
+# 投稿フロー
+
+```text
+サービス起動
+
+↓
+
+SQLite読込
+
+↓
+
+投稿予定検索
+
+↓
+
+投稿時間を過ぎた未投稿データ取得
+
+↓
+
+Instagram投稿
+
+↓
+
+X投稿
+
+↓
+
+ステータス更新
+```
+
+---
+
+# スケジューリング
+
+Windowsタスクスケジューラは使用しない。
+
+Pythonサービスを常駐させる。
+
+```text
+while True
+
+    投稿予定取得
+
+    未投稿確認
+
+    投稿
+
+    5分待機
+```
+
+Windows再起動後は自動起動する。
+
+---
+
+# 障害対策
+
+PC停止
+
+↓
+
+起動後に未投稿を確認
+
+↓
+
+投稿時刻を過ぎている場合は即投稿
+
+これにより
+
+* Windows Update
+* 停電
+* 手動再起動
+
+でも投稿漏れを最小化する。
+
+---
+
+# 投稿状態
+
+Instagram
+
+* WAIT
+* SUCCESS
+* FAILED
+
+X
+
+* WAIT
+* SUCCESS
+* FAILED
+
+片方だけ失敗しても再送可能。
+
+---
+
+# API
+
+投稿サービスはSNSごとに分離する。
+
+```text
+SocialProvider
+
+├─ BufferProvider
+├─ MetaProvider（将来）
+├─ XProvider（将来）
+```
+
+これにより配信先を容易に追加・変更できる。
+
+---
+
+# ディレクトリ構成
+
+```text
+project/
+
+    images/
+
+    database/
+        posts.db
+
+    scheduler.py
+
+    providers/
+        buffer_provider.py
+
+    config.py
+
+    logs/
+```
+
+---
+
+# MVPの機能
+
+* SQLiteで投稿管理
+* 画像ファイル管理
+* Instagram・Xへの画像付き投稿
+* SNSごとに本文を変更可能
+* 投稿日時指定
+* 常駐サービスによる自動投稿
+* 投稿履歴管理
+* 失敗時の再送
+* ログ出力
+
+---
+
+# 将来追加したい機能
+
+* WebUI
+* カレンダー表示
+* AIによる本文生成
+* AIによるハッシュタグ生成
+* 複数画像投稿
+* 動画投稿
+* リール対応
+* Pinterest対応
+* Bluesky対応
+* Threads対応
+* 投稿プレビュー
+* 投稿分析
+* AIBackgroundWorkerとの連携
+* Buffer以外のAPIへの切り替え
