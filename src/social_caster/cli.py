@@ -21,6 +21,8 @@ def main() -> None:
     subparsers.add_parser("init-db")
     subparsers.add_parser("auth-check")
     subparsers.add_parser("daily-batch")
+    subparsers.add_parser("publish-media")
+    subparsers.add_parser("publish-social")
     add_parser = subparsers.add_parser("add-post")
     add_parser.add_argument("--image-path", required=True)
     add_parser.add_argument("--image-url", required=True)
@@ -46,22 +48,37 @@ def main() -> None:
             for channel in client.get_channels(str(organization["id"])):
                 print(f"  {channel['service']}: {channel['name']} ({channel['id']})")
         return
+    database_path = Path(os.getenv("DATABASE_PATH", "database/posts.db"))
+    if args.command == "publish-media":
+        connection = connect(database_path)
+        batch = DailyBatch(
+            connection,
+            None,
+            FolderLayout(Path("input")),
+            _new_media_publisher(),
+        )
+        batch.publish_media_once()
+        return
+
     settings = Settings.from_env()
     connection = connect(settings.database_path)
-    if args.command == "daily-batch":
+    if args.command in {"daily-batch", "publish-social"}:
         provider = BufferProvider(
             BufferClient(settings.buffer_api_key),
             settings.instagram_channel_id,
             settings.x_channel_id,
         )
-        publisher = NewAITeesPublisher(
-            Path(os.getenv("NEWAITEES_PATH", "NewAITees")),
-            branch=os.getenv("NEWAITEES_BRANCH", "main"),
-            pages_base_url=os.getenv(
-                "NEWAITEES_PAGES_BASE_URL", "https://newaitees.github.io/NewAITees"
-            ),
-        )
-        DailyBatch(connection, provider, FolderLayout(Path("input")), publisher).run_once()
+        if args.command == "publish-social":
+            DailyBatch(
+                connection, provider, FolderLayout(Path("input")), None
+            ).publish_social_once()
+            return
+        DailyBatch(
+            connection,
+            provider,
+            FolderLayout(Path("input")),
+            _new_media_publisher(),
+        ).run_once()
         return
     if args.command == "add-post":
         _validate_datetime(args.publish_at)
@@ -93,6 +110,16 @@ def _validate_datetime(value: str) -> None:
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
         raise ValueError("publish_atにはタイムゾーンを指定してください")
+
+
+def _new_media_publisher() -> NewAITeesPublisher:
+    return NewAITeesPublisher(
+        Path(os.getenv("NEWAITEES_PATH", "NewAITees")),
+        branch=os.getenv("NEWAITEES_BRANCH", "main"),
+        pages_base_url=os.getenv(
+            "NEWAITEES_PAGES_BASE_URL", "https://newaitees.github.io/NewAITees"
+        ),
+    )
 
 
 if __name__ == "__main__":

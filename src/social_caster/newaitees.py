@@ -39,7 +39,13 @@ class NewAITeesPublisher:
         relative_image = destination.relative_to(self._repository_path).as_posix()
         self._run_git("diff", "--cached", "--quiet")
         self._run("node", "gallery-generator.js", cwd=self._repository_path)
-        self._run_git("add", "--", relative_image, "assets/js/gallery-data.json")
+        self._run_git(
+            "add",
+            "--",
+            relative_image,
+            "assets/js/gallery-data.json",
+            "assets/gallery-thumbnails",
+        )
         commit = self._run_git(
             "commit", "-m", f"chore: add gallery image {image_path.name}", allow_failure=True
         )

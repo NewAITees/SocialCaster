@@ -6,7 +6,7 @@ Buffer APIを使って、InstagramとXへ画像付き投稿を個別配信する
 
 Buffer APIはGraphQLで、エンドポイントは `https://api.buffer.com` です。InstagramとXはBuffer上の別チャンネルとして、それぞれの`channelId`へ投稿します。
 
-画像は、独立した`NewAITees`リポジトリへコピーしてローカルGitでコミット・pushし、GitHub Pagesの公開URLを生成します。そのURLをBufferへ渡します。`NewAITees`は親リポジトリへ取り込まず、別リポジトリとして管理します。
+Bufferは画像ファイルそのものを受け取るのではなく、Bufferが取得できる公開HTTPS画像URLを使って投稿します。そのため、画像は独立した`NewAITees`リポジトリへカテゴリ別に登録し、ローカルGitでcommit・pushしてGitHub Pagesで公開します。生成された公開URLをBufferへ渡します。`NewAITees`は親リポジトリへ取り込まず、別リポジトリとして管理します。
 
 ## セットアップ
 
@@ -45,7 +45,7 @@ DB初期化はBuffer認証情報なしで実行できます。
 uv run python -m social_caster.cli init-db
 ```
 
-投稿登録の`publish-at`はタイムゾーン付きISO 8601日時で指定します。
+手動登録の`publish-at`はタイムゾーン付きISO 8601日時で指定します。`image-url`は、すでに公開済みのHTTPS画像を手動登録する場合にだけ使います。通常の入力経路では、先にNewAITeesへ登録してURLを生成します。
 
 ```powershell
 uv run python -m social_caster.cli add-post `
@@ -77,15 +77,29 @@ Instagramで失敗してもXは独立して処理され、失敗したサービ�
 - Xは要点を短くまとめ、MVPでは通常投稿の280文字以内を検証します。X Premiumの長文投稿はMVP対象外です。
 - 画像URL、本文、投稿日時は両SNSで共通ですが、本文は共有しません。
 
-## フォルダ入力と日次実行
+## 入力・画像公開・SNS投稿
 
-別PCから画像だけを`input/inbox/`へ置き、[AI入力指示書.md](AI入力指示書.md)をCodexまたはClaude Desktopへ渡します。AIは画像ごとにInstagram本文、X本文、カテゴリ、投稿日時を含むJSONを作成し、画像と一緒に`input/ready/`へ移動します。日次バッチが`NewAITees`へ画像を登録して公開URLを生成します。
+別PCから画像をSMB共有の`\\DESKTOP-OBMGMM7\SocialCasterInput\inbox\`へ置き、[AI入力指示書.md](AI入力指示書.md)をCodexまたはClaude Desktopへ渡します。AIは画像と同じフォルダにInstagram本文、X本文、カテゴリ、投稿日時を含むJSONを作成します。
+
+日次処理は二段階です。
+
+1. JSONの`category`に従って画像をNewAITeesへ登録し、commit・pushしてGitHub Pagesの公開URLを確定する
+2. 公開URLを使い、Buffer経由でInstagramとXへ別々に投稿する
+
+画像公開が完了するまでBufferは呼び出しません。処理状態とSNSごとの再送状態はSQLiteで管理します。SMB設定方法は[input/README.md](input/README.md)を参照してください。共有するのは`input/`だけで、リポジトリ全体は共有しません。
 
 `NEWAITEES_PATH`には、ローカルにcloneした独立リポジトリのパスを設定します。実行環境のGitに、対象リポジトリへpushできる認証情報を設定してください。
 
 日次バッチは次のコマンドで実行します。
 
 ```powershell
+# 画像をNewAITeesへ公開する第1段階
+uv run python -m social_caster.cli publish-media
+
+# 公開済みURLをBufferへ投稿する第2段階
+uv run python -m social_caster.cli publish-social
+
+# 上記2段階を連続実行
 uv run python -m social_caster.cli daily-batch
 ```
 
@@ -95,7 +109,7 @@ Windowsタスクスケジューラへの登録:
 PowerShell -ExecutionPolicy Bypass -File scripts/register_daily_task.ps1
 ```
 
-成功した入力は`input/posted/`、失敗した入力は`input/failed/`へ移動します。
+入力ファイルは`input/inbox/`に置いたままにし、二重処理防止と再送状態はSQLiteで管理します。
 
 ## 検証
 

@@ -24,6 +24,14 @@ def test_pages_url_is_generated_from_category() -> None:
 
         assert url.endswith("/assets/gallery/horror/image.png")
         assert (repository / "assets/gallery/horror/image.png").exists()
+        assert [
+            "git",
+            "add",
+            "--",
+            "assets/gallery/horror/image.png",
+            "assets/js/gallery-data.json",
+            "assets/gallery-thumbnails",
+        ] in calls
         assert ["git", "push", "origin", "main"] in calls
     finally:
         shutil.rmtree(root, ignore_errors=True)

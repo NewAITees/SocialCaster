@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS posts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     image_path TEXT NOT NULL,
     image_url TEXT NOT NULL,
+    media_status TEXT NOT NULL DEFAULT 'WAIT',
+    media_error TEXT,
     instagram_text TEXT NOT NULL,
     twitter_text TEXT NOT NULL,
     publish_at TEXT NOT NULL,
@@ -32,6 +34,7 @@ class Post:
     id: int
     image_path: str
     image_url: str
+    media_status: str
     instagram_text: str
     twitter_text: str
     publish_at: str
@@ -67,9 +70,9 @@ def add_post(
     cursor = connection.execute(
         """
         INSERT INTO posts (
-            image_path, image_url, instagram_text, twitter_text, publish_at,
+            image_path, image_url, media_status, instagram_text, twitter_text, publish_at,
             source_key, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, 'SUCCESS', ?, ?, ?, ?, ?, ?)
         """,
         (
             image_path,
@@ -88,11 +91,37 @@ def add_post(
     return int(cursor.lastrowid)
 
 
+def add_pending_post(
+    connection: sqlite3.Connection,
+    *,
+    source_key: str,
+    image_path: str,
+    instagram_text: str,
+    twitter_text: str,
+    publish_at: str,
+) -> int:
+    validate_platform_texts(instagram_text=instagram_text, twitter_text=twitter_text)
+    now = _utc_now()
+    cursor = connection.execute(
+        """
+        INSERT INTO posts (
+            image_path, image_url, media_status, instagram_text, twitter_text, publish_at,
+            source_key, created_at, updated_at
+        ) VALUES (?, '', 'WAIT', ?, ?, ?, ?, ?, ?)
+        """,
+        (image_path, instagram_text, twitter_text, publish_at, source_key, now, now),
+    )
+    connection.commit()
+    if cursor.lastrowid is None:
+        raise RuntimeError("投稿IDを取得できませんでした")
+    return int(cursor.lastrowid)
+
+
 def get_post_by_source_key(connection: sqlite3.Connection, source_key: str) -> Post | None:
     row = connection.execute(
         """
         SELECT id, image_path, image_url, instagram_text, twitter_text, publish_at,
-               instagram_status, twitter_status
+               media_status, instagram_status, twitter_status
         FROM posts WHERE source_key = ?
         """,
         (source_key,),
@@ -105,9 +134,10 @@ def due_posts(connection: sqlite3.Connection, *, now: str | None = None) -> list
     rows = connection.execute(
         """
         SELECT id, image_path, image_url, instagram_text, twitter_text, publish_at,
-               instagram_status, twitter_status
+               media_status, instagram_status, twitter_status
         FROM posts
         WHERE publish_at <= ?
+          AND media_status = 'SUCCESS'
           AND (instagram_status != 'SUCCESS' OR twitter_status != 'SUCCESS')
         ORDER BY publish_at, id
         """,
@@ -124,6 +154,27 @@ def mark_success(
 
 def mark_failed(connection: sqlite3.Connection, *, post_id: int, service: str, error: str) -> None:
     _update_service(connection, post_id, service, "FAILED", None, error)
+
+
+def mark_media_success(connection: sqlite3.Connection, *, post_id: int, image_url: str) -> None:
+    if not image_url.startswith("https://"):
+        raise ValueError("image_urlはBufferから取得可能なhttps:// URLである必要があります")
+    now = _utc_now()
+    connection.execute(
+        "UPDATE posts SET image_url = ?, media_status = 'SUCCESS', "
+        "media_error = NULL, updated_at = ? WHERE id = ?",
+        (image_url, now, post_id),
+    )
+    connection.commit()
+
+
+def mark_media_failed(connection: sqlite3.Connection, *, post_id: int, error: str) -> None:
+    now = _utc_now()
+    connection.execute(
+        "UPDATE posts SET media_status = 'FAILED', media_error = ?, updated_at = ? WHERE id = ?",
+        (error, now, post_id),
+    )
+    connection.commit()
 
 
 def _update_service(
@@ -152,6 +203,7 @@ def _post_from_row(row: sqlite3.Row) -> Post:
         id=int(row["id"]),
         image_path=str(row["image_path"]),
         image_url=str(row["image_url"]),
+        media_status=str(row["media_status"]),
         instagram_text=str(row["instagram_text"]),
         twitter_text=str(row["twitter_text"]),
         publish_at=str(row["publish_at"]),
@@ -170,6 +222,12 @@ def _migrate(connection: sqlite3.Connection) -> None:
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_source_key ON posts(source_key)"
         )
         connection.commit()
+    if "media_status" not in columns:
+        connection.execute("ALTER TABLE posts ADD COLUMN media_status TEXT NOT NULL DEFAULT 'WAIT'")
+        connection.execute("UPDATE posts SET media_status = 'SUCCESS' WHERE image_url <> ''")
+    if "media_error" not in columns:
+        connection.execute("ALTER TABLE posts ADD COLUMN media_error TEXT")
+    connection.commit()
 
 
 def _utc_now() -> str:

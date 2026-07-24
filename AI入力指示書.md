@@ -2,7 +2,7 @@
 
 あなたはSocial Casterの投稿データ作成担当です。
 
-`input/inbox/`にある画像をファイル名順に1件ずつ処理し、画像ごとに同名JSONを`input/ready/`へ作成してください。画像も`input/ready/`へ移動してください。
+SocialCaster PCのSMB共有`\\DESKTOP-OBMGMM7\SocialCasterInput`にある画像を処理します。`inbox\`にある画像をファイル名順に1件ずつ処理し、画像と同じ`inbox\`フォルダに同名JSONを作成してください。画像を別フォルダへ移動する必要はありません。
 
 JSONは次の形式です。
 
@@ -23,4 +23,5 @@ JSONは次の形式です。
 - 投稿日時が不明なら勝手に決めず、処理を止めて質問する
 - `category`はNEWAITEESの既存カテゴリから選ぶ（abstract_image、botanical、bottled_image、horror、joke、monochrome、other）
 - JSONと画像のファイル名を一致させる
-- すでに`input/ready/`や`input/posted/`にある画像は再処理しない
+- 画像のコピー中を示す`.part`ファイルは処理しない
+- すでに同名JSONがある画像は再処理しない

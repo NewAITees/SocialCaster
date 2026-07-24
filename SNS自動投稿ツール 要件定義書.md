@@ -13,14 +13,27 @@ InstagramとX（Twitter）へ画像付き投稿を自動で配信する。
 # システム構成
 
 ```text
-投稿データ(SQLite)
+入力画像・投稿JSON
         │
         ▼
-投稿サービス(Python)
+画像公開処理(Python)
+        │
+        └── NewAITeesへカテゴリ別登録・GitHub Pages公開
+                    │
+                    ▼
+              公開HTTPS画像URL
+                    │
+                    ▼
+投稿管理(SQLite)
+        │
+        ▼
+SNS投稿処理(Python)
         │
         ├── Buffer（X）
         └── Buffer（Instagram）
 ```
+
+Bufferは画像ファイルそのもののアップロード先ではなく、Bufferが取得できる公開HTTPS画像URLを使って投稿する。そのため、既存のNewAITeesリポジトリへ画像をカテゴリ別に登録し、GitHub Pagesで公開したURLをBufferへ渡す。NewAITeesはSocialCasterの親リポジトリへ取り込まず、独立リポジトリとして管理する。
 
 ※ 将来的にInstagramだけMeta Business Suiteへ変更できるように設計する。
 
@@ -60,9 +73,11 @@ SQLiteには画像パスのみ保存する。
 | ---------------- | ------------ |
 | id               | 投稿ID         |
 | image_path       | 画像ファイルパス     |
+| image_url        | NewAITeesの公開HTTPS画像URL |
 | instagram_text   | Instagram用本文 |
 | twitter_text     | X用本文         |
 | publish_at       | 投稿予定日時       |
+| media_status     | 画像公開処理の状態 |
 | instagram_status | 待機・投稿済・失敗    |
 | twitter_status   | 待機・投稿済・失敗    |
 | created_at       | 登録日時         |
@@ -90,32 +105,46 @@ X
 # 投稿フロー
 
 ```text
-サービス起動
+第1段階：画像公開
+
+SMB共有のinboxから画像・投稿JSONを取得
 
 ↓
 
-SQLite読込
+JSONのcategoryに従ってNewAITees/assets/gallery/<category>/へ登録
 
 ↓
 
-投稿予定検索
+NewAITeesをcommit・push
 
 ↓
 
-投稿時間を過ぎた未投稿データ取得
+GitHub Pagesへの反映を確認し、公開URLをSQLiteへ保存
 
 ↓
 
-Instagram投稿
+第2段階：SNS投稿
+
+公開URLが保存済みで投稿予定時刻になったデータを取得
 
 ↓
 
-X投稿
+BufferのInstagramチャンネルへ投稿
 
 ↓
 
-ステータス更新
+BufferのXチャンネルへ投稿
+
+↓
+
+SNSごとのステータス更新
 ```
+
+画像公開が成功して公開URLが確定するまで、Bufferは呼び出さない。InstagramとXには同じ公開画像URLを渡すが、本文とステータスはSNSごとに分ける。
+
+日次実行では、第1段階完了後に第2段階を実行する。障害時はSQLiteの状態を使って、画像公開または失敗したSNS投稿から再開する。
+
+旧方式のように、投稿状態を`ready`・`posted`・`failed`フォルダへ移動して管理しない。入力はSMB共有の`input/inbox/`に集約し、処理状態はSQLiteで管理する。
 
 ---
 
