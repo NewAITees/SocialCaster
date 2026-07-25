@@ -21,5 +21,9 @@ class BufferProvider:
         except KeyError as exc:
             raise ValueError(f"未対応のサービスです: {service}") from exc
         return self._client.create_post(
-            channel_id=channel_id, text=text, image_url=image_url, due_at=due_at
+            channel_id=channel_id,
+            text=text,
+            image_url=image_url,
+            due_at=due_at,
+            service=service,
         )

@@ -3,18 +3,21 @@
 import json
 import sqlite3
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Protocol
 
 from social_caster.database import (
     Post,
     add_pending_post,
-    due_posts,
+    assign_publish_at,
     get_post_by_source_key,
     mark_failed,
     mark_media_failed,
     mark_media_success,
     mark_success,
+    scheduled_posts,
+    unscheduled_posts,
 )
 from social_caster.provider import SocialProvider
 
@@ -40,6 +43,10 @@ class FolderLayout:
 
 
 class DailyBatch:
+    MEDIA_PER_RUN = 3
+    SOCIAL_POSTS_PER_RUN = 3
+    SCHEDULE_HOURS_JST = (1, 9, 17)
+
     def __init__(
         self,
         connection: sqlite3.Connection,
@@ -67,15 +74,24 @@ class DailyBatch:
             self._layout.inbox.glob("*.json"),
             key=lambda path: (self._publish_at(path), path.name),
         )
-        for manifest_path in manifests:
+        for manifest_path in manifests[: self.MEDIA_PER_RUN]:
             self._publish_media_manifest(manifest_path)
 
     def publish_social_once(self) -> None:
         if self._provider is None:
             raise RuntimeError("SNS投稿処理が設定されていません")
-        for post in due_posts(self._connection):
-            self._try_post(post, "instagram", post.instagram_status, post.instagram_text)
-            self._try_post(post, "twitter", post.twitter_status, post.twitter_text)
+        unscheduled = unscheduled_posts(self._connection, limit=self.SOCIAL_POSTS_PER_RUN)
+        slots = _next_schedule_slots(
+            self._connection, count=len(unscheduled), now=datetime.now(UTC)
+        )
+        for post, slot in zip(unscheduled, slots, strict=True):
+            assign_publish_at(self._connection, post_id=post.id, publish_at=slot)
+        for post in scheduled_posts(self._connection):
+            due_at = post.publish_at
+            if due_at and due_at <= datetime.now(UTC).isoformat(timespec="seconds"):
+                due_at = None
+            self._try_post(post, "instagram", post.instagram_status, post.instagram_text, due_at)
+            self._try_post(post, "twitter", post.twitter_status, post.twitter_text, due_at)
 
     def _publish_media_manifest(self, manifest_path: Path) -> None:
         post: Post | None = None
@@ -89,7 +105,6 @@ class DailyBatch:
             image_path = manifest_path.parent / image_name
             instagram_text = _required_string(payload, "instagram_text")
             twitter_text = _required_string(payload, "twitter_text")
-            publish_at = _required_string(payload, "publish_at")
             source_key = manifest_path.relative_to(self._layout.root).as_posix()
             post = get_post_by_source_key(self._connection, source_key)
             if post is None:
@@ -99,7 +114,7 @@ class DailyBatch:
                     image_path=str(image_path),
                     instagram_text=instagram_text,
                     twitter_text=twitter_text,
-                    publish_at=publish_at,
+                    publish_at=None,
                 )
                 post = get_post_by_source_key(self._connection, source_key)
                 if post is None or post.id != post_id:
@@ -114,13 +129,17 @@ class DailyBatch:
             return
         mark_media_success(self._connection, post_id=post.id, image_url=image_url)
 
-    def _try_post(self, post: Post, service: str, status: str, text: str) -> None:
+    def _try_post(
+        self, post: Post, service: str, status: str, text: str, due_at: str | None
+    ) -> None:
         if status == "SUCCESS":
             return
         try:
             if self._provider is None:
                 raise RuntimeError("SNS投稿処理が設定されていません")
-            provider_id = self._provider.post(service=service, text=text, image_url=post.image_url)
+            provider_id = self._provider.post(
+                service=service, text=text, image_url=post.image_url, due_at=due_at
+            )
         except Exception as exc:  # noqa: BLE001 - continue with the other service
             mark_failed(self._connection, post_id=post.id, service=service, error=str(exc))
         else:
@@ -128,10 +147,35 @@ class DailyBatch:
 
     @staticmethod
     def _publish_at(path: Path) -> str:
-        try:
-            return _required_string(_read_manifest(path), "publish_at")
-        except (ValueError, OSError, json.JSONDecodeError):
-            return "9999-12-31T23:59:59+00:00"
+        return path.name
+
+
+def _next_schedule_slots(connection: sqlite3.Connection, *, count: int, now: datetime) -> list[str]:
+    if count == 0:
+        return []
+    latest = connection.execute(
+        "SELECT MAX(publish_at) FROM posts WHERE publish_at <> ''"
+    ).fetchone()[0]
+    cursor = now.astimezone(_JST).replace(second=0, microsecond=0)
+    if latest:
+        latest_time = datetime.fromisoformat(str(latest)).astimezone(_JST)
+        if latest_time >= cursor:
+            cursor = latest_time + timedelta(minutes=1)
+    slots: list[str] = []
+    while len(slots) < count:
+        for hour in DailyBatch.SCHEDULE_HOURS_JST:
+            candidate = cursor.replace(hour=hour, minute=0)
+            if candidate <= cursor:
+                continue
+            slots.append(candidate.isoformat())
+            cursor = candidate
+            if len(slots) == count:
+                break
+        cursor = (cursor + timedelta(days=1)).replace(hour=0, minute=0)
+    return slots
+
+
+_JST = timezone(timedelta(hours=9))
 
 
 def _read_manifest(path: Path) -> dict[str, object]:

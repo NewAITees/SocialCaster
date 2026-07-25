@@ -28,7 +28,7 @@ def main() -> None:
     add_parser.add_argument("--image-url", required=True)
     add_parser.add_argument("--instagram-text", required=True)
     add_parser.add_argument("--twitter-text", required=True)
-    add_parser.add_argument("--publish-at", required=True, help="ISO 8601 UTC日時")
+    add_parser.add_argument("--publish-at", required=True, help="ISO 8601日時")
     subparsers.add_parser("run-once")
     subparsers.add_parser("run")
     args = parser.parse_args()

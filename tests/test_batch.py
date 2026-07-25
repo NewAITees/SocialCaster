@@ -27,7 +27,7 @@ class FakeSocialProvider:
         return f"{service}-1"
 
 
-def _write_manifest(root: Path, publish_at: str) -> Path:
+def _write_manifest(root: Path, publish_at: str | None = None) -> Path:
     inbox = root / "inbox"
     inbox.mkdir(parents=True)
     (inbox / "a.png").write_bytes(b"image")
@@ -39,7 +39,7 @@ def _write_manifest(root: Path, publish_at: str) -> Path:
                 "category": "horror",
                 "instagram_text": "instagram",
                 "twitter_text": "x",
-                "publish_at": publish_at,
+                **({"publish_at": publish_at} if publish_at else {}),
             }
         ),
         encoding="utf-8",
@@ -83,5 +83,8 @@ def test_social_phase_uses_published_media_url() -> None:
         batch.run_once()
 
         assert provider.services == ["instagram", "twitter"]
+        post = get_post_by_source_key(connection, "inbox/a.json")
+        assert post is not None
+        assert post.publish_at is not None
     finally:
         shutil.rmtree(root, ignore_errors=True)

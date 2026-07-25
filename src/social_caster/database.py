@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS posts (
     media_error TEXT,
     instagram_text TEXT NOT NULL,
     twitter_text TEXT NOT NULL,
-    publish_at TEXT NOT NULL,
+    publish_at TEXT NOT NULL DEFAULT '',
     instagram_status TEXT NOT NULL DEFAULT 'WAIT',
     twitter_status TEXT NOT NULL DEFAULT 'WAIT',
     instagram_buffer_id TEXT,
@@ -37,7 +37,7 @@ class Post:
     media_status: str
     instagram_text: str
     twitter_text: str
-    publish_at: str
+    publish_at: str | None
     instagram_status: str
     twitter_status: str
 
@@ -98,7 +98,7 @@ def add_pending_post(
     image_path: str,
     instagram_text: str,
     twitter_text: str,
-    publish_at: str,
+    publish_at: str | None = None,
 ) -> int:
     validate_platform_texts(instagram_text=instagram_text, twitter_text=twitter_text)
     now = _utc_now()
@@ -109,7 +109,7 @@ def add_pending_post(
             source_key, created_at, updated_at
         ) VALUES (?, '', 'WAIT', ?, ?, ?, ?, ?, ?)
         """,
-        (image_path, instagram_text, twitter_text, publish_at, source_key, now, now),
+        (image_path, instagram_text, twitter_text, publish_at or "", source_key, now, now),
     )
     connection.commit()
     if cursor.lastrowid is None:
@@ -137,6 +137,7 @@ def due_posts(connection: sqlite3.Connection, *, now: str | None = None) -> list
                media_status, instagram_status, twitter_status
         FROM posts
         WHERE publish_at <= ?
+          AND publish_at <> ''
           AND media_status = 'SUCCESS'
           AND (instagram_status != 'SUCCESS' OR twitter_status != 'SUCCESS')
         ORDER BY publish_at, id
@@ -144,6 +145,47 @@ def due_posts(connection: sqlite3.Connection, *, now: str | None = None) -> list
         (current,),
     ).fetchall()
     return [_post_from_row(row) for row in rows]
+
+
+def unscheduled_posts(connection: sqlite3.Connection, *, limit: int) -> list[Post]:
+    rows = connection.execute(
+        """
+        SELECT id, image_path, image_url, instagram_text, twitter_text, publish_at,
+               media_status, instagram_status, twitter_status
+        FROM posts
+        WHERE media_status = 'SUCCESS'
+          AND publish_at = ''
+          AND (instagram_status != 'SUCCESS' OR twitter_status != 'SUCCESS')
+        ORDER BY created_at, id
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    return [_post_from_row(row) for row in rows]
+
+
+def scheduled_posts(connection: sqlite3.Connection) -> list[Post]:
+    rows = connection.execute(
+        """
+        SELECT id, image_path, image_url, instagram_text, twitter_text, publish_at,
+               media_status, instagram_status, twitter_status
+        FROM posts
+        WHERE media_status = 'SUCCESS'
+          AND publish_at <> ''
+          AND (instagram_status != 'SUCCESS' OR twitter_status != 'SUCCESS')
+        ORDER BY publish_at, id
+        """
+    ).fetchall()
+    return [_post_from_row(row) for row in rows]
+
+
+def assign_publish_at(connection: sqlite3.Connection, *, post_id: int, publish_at: str) -> None:
+    now = _utc_now()
+    connection.execute(
+        "UPDATE posts SET publish_at = ?, updated_at = ? WHERE id = ? AND publish_at = ''",
+        (publish_at, now, post_id),
+    )
+    connection.commit()
 
 
 def mark_success(
@@ -206,7 +248,7 @@ def _post_from_row(row: sqlite3.Row) -> Post:
         media_status=str(row["media_status"]),
         instagram_text=str(row["instagram_text"]),
         twitter_text=str(row["twitter_text"]),
-        publish_at=str(row["publish_at"]),
+        publish_at=str(row["publish_at"]) or None,
         instagram_status=str(row["instagram_status"]),
         twitter_status=str(row["twitter_status"]),
     )

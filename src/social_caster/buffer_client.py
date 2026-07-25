@@ -44,9 +44,15 @@ class BufferClient:
         text: str,
         image_url: str,
         due_at: str | None = None,
+        service: str | None = None,
     ) -> str:
         mode = "customScheduled" if due_at else "addToQueue"
         due_at_input = f', dueAt: "{due_at}"' if due_at else ""
+        metadata = (
+            "metadata: { instagram: { type: post, shouldShareToFeed: true } }"
+            if service == "instagram"
+            else ""
+        )
         query = f"""
         mutation CreatePost {{
           createPost(input: {{
@@ -55,6 +61,7 @@ class BufferClient:
             schedulingType: automatic
             mode: {mode}{due_at_input}
             assets: [{{ image: {{ url: {json.dumps(image_url)} }} }}]
+            {metadata}
           }}) {{
             ... on PostActionSuccess {{ post {{ id }} }}
             ... on MutationError {{ message }}
