@@ -26,6 +26,27 @@ class Settings:
         )
 
 
+def load_dotenv(path: Path | None = None) -> None:
+    """Load simple KEY=VALUE entries without overriding process variables."""
+    dotenv_path = path or Path(__file__).resolve().parents[2] / ".env"
+    if not dotenv_path.is_file():
+        return
+    for raw_line in dotenv_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        name = name.strip()
+        value = value.strip()
+        if not name or name.startswith("export "):
+            name = name.removeprefix("export ").strip()
+        if not name or name in os.environ:
+            continue
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        os.environ[name] = value
+
+
 def _required(name: str) -> str:
     value = os.getenv(name)
     if not value:

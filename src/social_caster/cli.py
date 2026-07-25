@@ -8,7 +8,7 @@ from pathlib import Path
 
 from social_caster.batch import DailyBatch, FolderLayout
 from social_caster.buffer_client import BufferClient
-from social_caster.config import Settings
+from social_caster.config import Settings, load_dotenv
 from social_caster.database import add_post, connect
 from social_caster.newaitees import NewAITeesPublisher
 from social_caster.provider import BufferProvider
@@ -16,6 +16,7 @@ from social_caster.scheduler import Scheduler
 
 
 def main() -> None:
+    load_dotenv()
     parser = argparse.ArgumentParser(prog="social-caster")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("init-db")
