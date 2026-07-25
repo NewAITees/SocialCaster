@@ -10,9 +10,11 @@ def test_pages_url_is_generated_from_category() -> None:
     image = root / "image.png"
     repository = root / "NewAITees"
     calls: list[list[str]] = []
+    run_options: list[dict[str, object]] = []
 
     def runner(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
+        run_options.append(kwargs)
         return subprocess.CompletedProcess(command, 0, "", "")
 
     try:
@@ -33,5 +35,7 @@ def test_pages_url_is_generated_from_category() -> None:
             "assets/gallery-thumbnails",
         ] in calls
         assert ["git", "push", "origin", "main"] in calls
+        assert all(options["encoding"] == "utf-8" for options in run_options)
+        assert all(options["errors"] == "replace" for options in run_options)
     finally:
         shutil.rmtree(root, ignore_errors=True)

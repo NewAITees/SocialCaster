@@ -109,7 +109,7 @@ Windowsタスクスケジューラへの登録:
 PowerShell -ExecutionPolicy Bypass -File scripts/register_daily_task.ps1
 ```
 
-公開成功した入力ファイルは`input/archive/`へ移動し、未処理ファイルだけを`input/inbox/`に残します。再送状態はSQLiteで管理します。
+NewAITeesへの公開成功後、入力画像とJSONは`input/archive/`へ移動します。公開・SNS投稿の状態はSQLiteで管理します。
 
 ## 検証
 

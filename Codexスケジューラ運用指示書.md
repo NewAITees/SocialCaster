@@ -53,7 +53,7 @@ C:\projects\SocialCaster\.venv\Scripts\python.exe -m social_caster.cli publish-m
 - `.part`ファイルは対象外にする
 - 画像と同名の`.json`が存在する画像は、JSONを再生成しない
 - 1回の実行で新規JSONを最大3件だけ作成する
-- 公開成功後の画像とJSONは`C:\projects\SocialCaster\input\archive`へ移動される
+- NewAITeesへの公開成功後、画像とJSONは`C:\projects\SocialCaster\input\archive`へ移動される
 - 投稿日時は設定しない
 
 各画像を目視で分析し、画像と同じフォルダに同名JSONをUTF-8で作成してください。JSONの保存先は必ず次の形式にしてください。
@@ -179,6 +179,7 @@ JSON作成後、次を確認してください。
 作業ディレクトリ`C:\projects\SocialCaster`で、次を実行してください。
 
 ```powershell
+Set-Location C:\projects\SocialCaster
 C:\projects\SocialCaster\.venv\Scripts\python.exe -m social_caster.cli publish-social
 ```
 
@@ -186,9 +187,10 @@ C:\projects\SocialCaster\.venv\Scripts\python.exe -m social_caster.cli publish-s
 
 あなたはSocialCasterのプロセス2担当です。
 
-上記の`publish-social`コマンドだけを実行してください。プロセス1が成功して公開URLが確定した投稿だけが対象になります。
+上記の`publish-social`コマンドだけを実行してください。SocialCaster本体やNewAITeesのpullは実行しないでください。プロセス1が成功して公開URLが確定した投稿だけが対象になります。
 
 - NewAITeesへ画像を追加しない
+- inboxやarchiveのファイルを移動・変更しない
 - JSONを新規作成・変更しない
 - Buffer APIキーやチャンネルIDを表示しない
 - 1回の実行で最大3件をBufferへ予約登録する
@@ -224,6 +226,6 @@ APIキー、アクセストークン、秘密情報、本文全文は報告へ�
 - 失敗した画像や投稿は移動しない
 - `ready`、`posted`、`failed`フォルダを作成しない
 - 未処理の入力画像とJSONは`C:\projects\SocialCaster\input\inbox`に残す
-- 公開成功済みの画像とJSONは`C:\projects\SocialCaster\input\archive`に置かれる
+- プロセス1で公開成功した画像とJSONは`C:\projects\SocialCaster\input\archive`に置かれる
 - 状態確認はSQLiteとコマンド結果で行う
 - 同じ失敗を無制限に繰り返さず、エラーを報告して停止する

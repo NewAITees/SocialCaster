@@ -1,8 +1,9 @@
 import json
 import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 
-from social_caster.batch import DailyBatch, FolderLayout
+from social_caster.batch import DailyBatch, FolderLayout, _next_schedule_slots
 from social_caster.database import connect, get_post_by_source_key
 
 
@@ -47,7 +48,7 @@ def _write_manifest(root: Path, publish_at: str | None = None) -> Path:
     return manifest
 
 
-def test_media_phase_publishes_without_moving_inbox_files() -> None:
+def test_media_phase_archives_inputs_after_publishing() -> None:
     root = Path("tests/_runtime_batch_media")
     try:
         manifest = _write_manifest(root, "2026-01-01T00:00:00+00:00")
@@ -73,6 +74,19 @@ def test_media_phase_publishes_without_moving_inbox_files() -> None:
         shutil.rmtree(root, ignore_errors=True)
 
 
+def test_schedule_slots_cover_evening_and_next_day_morning() -> None:
+    connection = connect(":memory:")
+    now = datetime(2026, 7, 25, 7, 0, tzinfo=UTC)
+
+    slots = _next_schedule_slots(connection, count=3, now=now)
+
+    assert slots == [
+        "2026-07-25T17:00:00+09:00",
+        "2026-07-26T01:00:00+09:00",
+        "2026-07-26T09:00:00+09:00",
+    ]
+
+
 def test_social_phase_uses_published_media_url() -> None:
     root = Path("tests/_runtime_batch_social")
     try:
@@ -85,6 +99,10 @@ def test_social_phase_uses_published_media_url() -> None:
         batch.run_once()
 
         assert provider.services == ["instagram", "twitter"]
+        assert not (root / "inbox/a.json").exists()
+        assert not (root / "inbox/a.png").exists()
+        assert (root / "archive/a.json").exists()
+        assert (root / "archive/a.png").exists()
         post = get_post_by_source_key(connection, "inbox/a.json")
         assert post is not None
         assert post.publish_at is not None

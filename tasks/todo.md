@@ -50,3 +50,11 @@
 - [x] NewAITees画像公開後にBuffer投稿する二段階フローを文書化する
 - [x] 画像公開処理とBuffer投稿処理をコード上でも分離する
 - [x] ready／posted／failedフォルダ依存を廃止し、SQLite状態管理へ移行する
+
+## 今回の修正
+- [x] プロセス2は `publish-social` だけを実行する
+- [x] プロセス1のNewAITees公開後に画像・JSONをarchiveへ移動する責務を確認する
+- [x] プロセス2がinbox・archiveを操作しないことを明記する
+- [x] 関連テストとScheduled指示を更新する
+- [x] pytest・lint・型チェックを実行する
+- [x] 2026-07-25 17:00、翌日01:00・09:00のJST予約枠をテストする

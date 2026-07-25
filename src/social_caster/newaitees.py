@@ -96,6 +96,8 @@ class NewAITeesPublisher:
             check=False,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         if result.returncode != 0 and not allow_failure:
             message = result.stderr.strip() or result.stdout.strip()

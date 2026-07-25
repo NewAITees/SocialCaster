@@ -40,27 +40,25 @@ monster.png       ← コピー完了後にリネーム
 次の指示を渡します。
 
 ```text
-input/inbox/ にある未処理画像をファイル名順に処理してください。
+`C:\projects\SocialCaster\input\inbox`にある未処理画像をファイル名順に最大3件処理してください。
 
 画像ごとに以下を行ってください。
-1. 画像の内容を確認する
-2. Instagram向けの詳しい説明文を日本語で作る
-3. X向けに280文字以内の短い本文を作る
-4. 投稿日時を確認できない場合は、publish_atを依頼者に質問する
-5. 元画像と同じファイル名のJSONをinput/inbox/へ作成する
-6. 画像は公開成功までinput/inbox/に残し、公開成功後はinput/archive/へ移動する
+1. 画像の内容を分析する。分析結果は投稿本文に含めない
+2. 指定されたルールに従ってInstagram用の日本語・英語マーケティング文章と20個の小文字ハッシュタグを作る
+3. X用に同じ方向性の本文を280文字以内で作る
+4. 元画像と同じファイル名のJSONを`C:\projects\SocialCaster\input\inbox`へ作成する
+5. NewAITeesへの公開成功後、SocialCasterが画像とJSONを`C:\projects\SocialCaster\input\archive`へ移動する
 
 JSON形式:
 {
   "image": "画像ファイル名.jpg",
   "category": "horror",
-  "instagram_text": "Instagram本文",
-  "twitter_text": "X本文",
-  "publish_at": "2026-07-25T09:00:00+09:00"
+  "instagram_text": "日本語・英語のマーケティング文章と20個の小文字ハッシュタグ",
+  "twitter_text": "X本文"
 }
 
 画像とJSONのファイル名は一致させ、JSONを先に作らないでください。
-処理済み画像は再処理しないでください。
+同名JSONがある画像は再処理せず、`publish_at`をJSONへ追加しないでください。
 ```
 
 画像は日次バッチがNEWAITEESへGit commit・pushし、GitHub Pages URLを自動生成します。`image_url`の入力は不要です。
