@@ -1,6 +1,7 @@
 """Two-stage inbox batch: publish media first, then post to Buffer."""
 
 import json
+import shutil
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone
@@ -38,8 +39,13 @@ class FolderLayout:
     def inbox(self) -> Path:
         return self.root / "inbox"
 
+    @property
+    def archive(self) -> Path:
+        return self.root / "archive"
+
     def ensure(self) -> None:
         self.inbox.mkdir(parents=True, exist_ok=True)
+        self.archive.mkdir(parents=True, exist_ok=True)
 
 
 class DailyBatch:
@@ -127,7 +133,13 @@ class DailyBatch:
             if post is not None:
                 mark_media_failed(self._connection, post_id=post.id, error=str(exc))
             return
+        self._archive_inputs(manifest_path, image_path)
         mark_media_success(self._connection, post_id=post.id, image_url=image_url)
+
+    def _archive_inputs(self, manifest_path: Path, image_path: Path) -> None:
+        self._layout.archive.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(image_path), self._layout.archive / image_path.name)
+        shutil.move(str(manifest_path), self._layout.archive / manifest_path.name)
 
     def _try_post(
         self, post: Post, service: str, status: str, text: str, due_at: str | None

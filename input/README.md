@@ -48,7 +48,7 @@ input/inbox/ にある未処理画像をファイル名順に処理してくだ�
 3. X向けに280文字以内の短い本文を作る
 4. 投稿日時を確認できない場合は、publish_atを依頼者に質問する
 5. 元画像と同じファイル名のJSONをinput/inbox/へ作成する
-6. 画像はinput/inbox/に残す
+6. 画像は公開成功までinput/inbox/に残し、公開成功後はinput/archive/へ移動する
 
 JSON形式:
 {
@@ -67,4 +67,4 @@ JSON形式:
 
 ## 3. 日次バッチ
 
-日次バッチは`input/inbox/`の画像とJSONを処理します。まずNewAITeesへカテゴリ別に画像を公開し、公開URLを確定します。その後、公開URLを使ってBufferからInstagramとXへ投稿します。画像公開の状態とSNS別の再送状態はSQLiteで管理します。
+日次バッチは`input/inbox/`の画像とJSONを最大3件処理します。まずNewAITeesへカテゴリ別に画像を公開し、公開URLを確定した後、画像とJSONを`input/archive/`へ移動します。その後、公開URLを使ってBufferからInstagramとXへ投稿します。画像公開の状態とSNS別の再送状態はSQLiteで管理します。

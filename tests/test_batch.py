@@ -64,8 +64,10 @@ def test_media_phase_publishes_without_moving_inbox_files() -> None:
         post = get_post_by_source_key(connection, "inbox/a.json")
         assert post is not None
         assert post.media_status == "SUCCESS"
-        assert manifest.exists()
-        assert (root / "inbox/a.png").exists()
+        assert not manifest.exists()
+        assert not (root / "inbox/a.png").exists()
+        assert (root / "archive/a.json").exists()
+        assert (root / "archive/a.png").exists()
         assert publisher.published == [(root / "inbox/a.png", "horror")]
     finally:
         shutil.rmtree(root, ignore_errors=True)

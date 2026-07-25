@@ -6,6 +6,7 @@
 
 - 作業ディレクトリ: `C:\projects\SocialCaster`
 - 入力フォルダ: `C:\projects\SocialCaster\input\inbox`
+- 処理済みアーカイブ: `C:\projects\SocialCaster\input\archive`
 - NewAITeesリポジトリ: `C:\projects\SocialCaster\NewAITees`
 - Python実行ファイル: `C:\projects\SocialCaster\.venv\Scripts\python.exe`
 - SQLiteデータベース: `C:\projects\SocialCaster\database\posts.db`
@@ -52,7 +53,7 @@ C:\projects\SocialCaster\.venv\Scripts\python.exe -m social_caster.cli publish-m
 - `.part`ファイルは対象外にする
 - 画像と同名の`.json`が存在する画像は、JSONを再生成しない
 - 1回の実行で新規JSONを最大3件だけ作成する
-- 画像を別フォルダへ移動しない
+- 公開成功後の画像とJSONは`C:\projects\SocialCaster\input\archive`へ移動される
 - 投稿日時は設定しない
 
 各画像を目視で分析し、画像と同じフォルダに同名JSONをUTF-8で作成してください。JSONの保存先は必ず次の形式にしてください。
@@ -220,8 +221,9 @@ APIキー、アクセストークン、秘密情報、本文全文は報告へ�
 
 ## 失敗時のルール
 
-- 失敗した画像や投稿を別フォルダへ移動しない
+- 失敗した画像や投稿は移動しない
 - `ready`、`posted`、`failed`フォルダを作成しない
-- 入力画像とJSONは`C:\projects\SocialCaster\input\inbox`に残す
+- 未処理の入力画像とJSONは`C:\projects\SocialCaster\input\inbox`に残す
+- 公開成功済みの画像とJSONは`C:\projects\SocialCaster\input\archive`に置かれる
 - 状態確認はSQLiteとコマンド結果で行う
 - 同じ失敗を無制限に繰り返さず、エラーを報告して停止する

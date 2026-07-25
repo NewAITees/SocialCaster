@@ -144,7 +144,7 @@ SNSごとのステータス更新
 
 日次実行では、第1段階完了後に第2段階を実行する。障害時はSQLiteの状態を使って、画像公開または失敗したSNS投稿から再開する。
 
-旧方式のように、投稿状態を`ready`・`posted`・`failed`フォルダへ移動して管理しない。入力はSMB共有の`input/inbox/`に集約し、処理状態はSQLiteで管理する。
+旧方式のように、投稿状態を`ready`・`posted`・`failed`フォルダへ分けて管理しない。未処理入力はSMB共有の`input/inbox/`に置き、NewAITeesへの画像公開成功後に画像とJSONを`input/archive/`へ移動する。処理状態はSQLiteで管理する。
 
 ---
 

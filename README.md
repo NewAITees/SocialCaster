@@ -109,7 +109,7 @@ Windowsタスクスケジューラへの登録:
 PowerShell -ExecutionPolicy Bypass -File scripts/register_daily_task.ps1
 ```
 
-入力ファイルは`input/inbox/`に置いたままにし、二重処理防止と再送状態はSQLiteで管理します。
+公開成功した入力ファイルは`input/archive/`へ移動し、未処理ファイルだけを`input/inbox/`に残します。再送状態はSQLiteで管理します。
 
 ## 検証
 
