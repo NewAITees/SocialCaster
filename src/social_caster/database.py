@@ -198,14 +198,20 @@ def mark_failed(connection: sqlite3.Connection, *, post_id: int, service: str, e
     _update_service(connection, post_id, service, "FAILED", None, error)
 
 
-def mark_media_success(connection: sqlite3.Connection, *, post_id: int, image_url: str) -> None:
+def mark_media_success(
+    connection: sqlite3.Connection,
+    *,
+    post_id: int,
+    image_path: str,
+    image_url: str,
+) -> None:
     if not image_url.startswith("https://"):
         raise ValueError("image_urlはBufferから取得可能なhttps:// URLである必要があります")
     now = _utc_now()
     connection.execute(
-        "UPDATE posts SET image_url = ?, media_status = 'SUCCESS', "
+        "UPDATE posts SET image_path = ?, image_url = ?, media_status = 'SUCCESS', "
         "media_error = NULL, updated_at = ? WHERE id = ?",
-        (image_url, now, post_id),
+        (image_path, image_url, now, post_id),
     )
     connection.commit()
 

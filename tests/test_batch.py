@@ -65,6 +65,7 @@ def test_media_phase_archives_inputs_after_publishing() -> None:
         post = get_post_by_source_key(connection, "inbox/a.json")
         assert post is not None
         assert post.media_status == "SUCCESS"
+        assert post.image_path == str(root / "archive/a.png")
         assert not manifest.exists()
         assert not (root / "inbox/a.png").exists()
         assert (root / "archive/a.json").exists()

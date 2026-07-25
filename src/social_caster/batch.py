@@ -133,13 +133,20 @@ class DailyBatch:
             if post is not None:
                 mark_media_failed(self._connection, post_id=post.id, error=str(exc))
             return
-        self._archive_inputs(manifest_path, image_path)
-        mark_media_success(self._connection, post_id=post.id, image_url=image_url)
+        archive_image_path = self._archive_inputs(manifest_path, image_path)
+        mark_media_success(
+            self._connection,
+            post_id=post.id,
+            image_path=str(archive_image_path),
+            image_url=image_url,
+        )
 
-    def _archive_inputs(self, manifest_path: Path, image_path: Path) -> None:
+    def _archive_inputs(self, manifest_path: Path, image_path: Path) -> Path:
         self._layout.archive.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(image_path), self._layout.archive / image_path.name)
+        archive_image_path = self._layout.archive / image_path.name
+        shutil.move(str(image_path), archive_image_path)
         shutil.move(str(manifest_path), self._layout.archive / manifest_path.name)
+        return archive_image_path
 
     def _try_post(
         self, post: Post, service: str, status: str, text: str, due_at: str | None
