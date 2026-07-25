@@ -15,4 +15,5 @@ input/ready/*
 input/failed/*
 input/posted/*
 input/inbox/*
+input/archive/*
 !input/**/.gitkeep
