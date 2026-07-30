@@ -1,6 +1,7 @@
 """Two-stage inbox batch: publish media first, then post to Buffer."""
 
 import json
+import random
 import shutil
 import sqlite3
 from dataclasses import dataclass
@@ -8,6 +9,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Protocol
 
+from social_caster.content import diversify_hashtags, is_duplicate_text
 from social_caster.database import (
     Post,
     add_pending_post,
@@ -17,10 +19,14 @@ from social_caster.database import (
     mark_media_failed,
     mark_media_success,
     mark_success,
+    posted_twitter_texts,
     scheduled_posts,
     unscheduled_posts,
 )
 from social_caster.provider import SocialProvider
+
+# 機械的な等間隔投稿を避けるため、基準時刻に0〜この分数のゆらぎを足す（凍結対策）。
+SCHEDULE_JITTER_MAX_MINUTES = 50
 
 
 class MediaPublisher(Protocol):
@@ -92,12 +98,25 @@ class DailyBatch:
         )
         for post, slot in zip(unscheduled, slots, strict=True):
             assign_publish_at(self._connection, post_id=post.id, publish_at=slot)
+        seen_twitter_texts = posted_twitter_texts(self._connection)
         for post in scheduled_posts(self._connection):
             due_at = post.publish_at
             if due_at and due_at <= datetime.now(UTC).isoformat(timespec="seconds"):
                 due_at = None
             self._try_post(post, "instagram", post.instagram_status, post.instagram_text, due_at)
-            self._try_post(post, "twitter", post.twitter_status, post.twitter_text, due_at)
+            if post.twitter_status != "SUCCESS" and is_duplicate_text(
+                post.twitter_text, seen_twitter_texts
+            ):
+                mark_failed(
+                    self._connection,
+                    post_id=post.id,
+                    service="twitter",
+                    error="類似投稿のためXへの投稿をスキップしました（凍結対策）",
+                )
+                continue
+            tweet_text = diversify_hashtags(post.twitter_text, index=post.id)
+            self._try_post(post, "twitter", post.twitter_status, tweet_text, due_at)
+            seen_twitter_texts.append(post.twitter_text)
 
     def _publish_media_manifest(self, manifest_path: Path) -> None:
         post: Post | None = None
@@ -137,7 +156,7 @@ class DailyBatch:
         mark_media_success(
             self._connection,
             post_id=post.id,
-            image_path=str(archive_image_path),
+            archive_image_path=str(archive_image_path),
             image_url=image_url,
         )
 
@@ -169,9 +188,16 @@ class DailyBatch:
         return path.name
 
 
-def _next_schedule_slots(connection: sqlite3.Connection, *, count: int, now: datetime) -> list[str]:
+def _next_schedule_slots(
+    connection: sqlite3.Connection,
+    *,
+    count: int,
+    now: datetime,
+    rng: random.Random | None = None,
+) -> list[str]:
     if count == 0:
         return []
+    rng = rng if rng is not None else random.Random()
     latest = connection.execute(
         "SELECT MAX(publish_at) FROM posts WHERE publish_at <> ''"
     ).fetchone()[0]
@@ -186,7 +212,8 @@ def _next_schedule_slots(connection: sqlite3.Connection, *, count: int, now: dat
             candidate = cursor.replace(hour=hour, minute=0)
             if candidate <= cursor:
                 continue
-            slots.append(candidate.isoformat())
+            jitter = rng.randint(0, SCHEDULE_JITTER_MAX_MINUTES)
+            slots.append((candidate + timedelta(minutes=jitter)).isoformat())
             cursor = candidate
             if len(slots) == count:
                 break

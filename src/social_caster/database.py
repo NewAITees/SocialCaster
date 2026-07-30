@@ -11,6 +11,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS posts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     image_path TEXT NOT NULL,
+    archive_image_path TEXT,
     image_url TEXT NOT NULL,
     media_status TEXT NOT NULL DEFAULT 'WAIT',
     media_error TEXT,
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS posts (
 class Post:
     id: int
     image_path: str
+    archive_image_path: str | None
     image_url: str
     media_status: str
     instagram_text: str
@@ -71,8 +73,8 @@ def add_post(
         """
         INSERT INTO posts (
             image_path, image_url, media_status, instagram_text, twitter_text, publish_at,
-            source_key, created_at, updated_at
-        ) VALUES (?, ?, 'SUCCESS', ?, ?, ?, ?, ?, ?)
+            archive_image_path, source_key, created_at, updated_at
+        ) VALUES (?, ?, 'SUCCESS', ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             image_path,
@@ -80,6 +82,7 @@ def add_post(
             instagram_text,
             twitter_text,
             publish_at,
+            None,
             source_key,
             now,
             now,
@@ -106,10 +109,10 @@ def add_pending_post(
         """
         INSERT INTO posts (
             image_path, image_url, media_status, instagram_text, twitter_text, publish_at,
-            source_key, created_at, updated_at
-        ) VALUES (?, '', 'WAIT', ?, ?, ?, ?, ?, ?)
+            archive_image_path, source_key, created_at, updated_at
+        ) VALUES (?, '', 'WAIT', ?, ?, ?, ?, ?, ?, ?)
         """,
-        (image_path, instagram_text, twitter_text, publish_at or "", source_key, now, now),
+        (image_path, instagram_text, twitter_text, publish_at or "", None, source_key, now, now),
     )
     connection.commit()
     if cursor.lastrowid is None:
@@ -120,8 +123,8 @@ def add_pending_post(
 def get_post_by_source_key(connection: sqlite3.Connection, source_key: str) -> Post | None:
     row = connection.execute(
         """
-        SELECT id, image_path, image_url, instagram_text, twitter_text, publish_at,
-               media_status, instagram_status, twitter_status
+        SELECT id, image_path, archive_image_path, image_url, instagram_text,
+               twitter_text, publish_at, media_status, instagram_status, twitter_status
         FROM posts WHERE source_key = ?
         """,
         (source_key,),
@@ -133,8 +136,8 @@ def due_posts(connection: sqlite3.Connection, *, now: str | None = None) -> list
     current = now or _utc_now()
     rows = connection.execute(
         """
-        SELECT id, image_path, image_url, instagram_text, twitter_text, publish_at,
-               media_status, instagram_status, twitter_status
+        SELECT id, image_path, archive_image_path, image_url, instagram_text,
+               twitter_text, publish_at, media_status, instagram_status, twitter_status
         FROM posts
         WHERE publish_at <= ?
           AND publish_at <> ''
@@ -150,8 +153,8 @@ def due_posts(connection: sqlite3.Connection, *, now: str | None = None) -> list
 def unscheduled_posts(connection: sqlite3.Connection, *, limit: int) -> list[Post]:
     rows = connection.execute(
         """
-        SELECT id, image_path, image_url, instagram_text, twitter_text, publish_at,
-               media_status, instagram_status, twitter_status
+        SELECT id, image_path, archive_image_path, image_url, instagram_text,
+               twitter_text, publish_at, media_status, instagram_status, twitter_status
         FROM posts
         WHERE media_status = 'SUCCESS'
           AND publish_at = ''
@@ -167,8 +170,8 @@ def unscheduled_posts(connection: sqlite3.Connection, *, limit: int) -> list[Pos
 def scheduled_posts(connection: sqlite3.Connection) -> list[Post]:
     rows = connection.execute(
         """
-        SELECT id, image_path, image_url, instagram_text, twitter_text, publish_at,
-               media_status, instagram_status, twitter_status
+        SELECT id, image_path, archive_image_path, image_url, instagram_text,
+               twitter_text, publish_at, media_status, instagram_status, twitter_status
         FROM posts
         WHERE media_status = 'SUCCESS'
           AND publish_at <> ''
@@ -177,6 +180,14 @@ def scheduled_posts(connection: sqlite3.Connection) -> list[Post]:
         """
     ).fetchall()
     return [_post_from_row(row) for row in rows]
+
+
+def posted_twitter_texts(connection: sqlite3.Connection) -> list[str]:
+    """既にXへ投稿成功した本文の一覧（重複チェックの基準に使う）。"""
+    rows = connection.execute(
+        "SELECT twitter_text FROM posts WHERE twitter_status = 'SUCCESS'"
+    ).fetchall()
+    return [str(row["twitter_text"]) for row in rows]
 
 
 def assign_publish_at(connection: sqlite3.Connection, *, post_id: int, publish_at: str) -> None:
@@ -202,16 +213,16 @@ def mark_media_success(
     connection: sqlite3.Connection,
     *,
     post_id: int,
-    image_path: str,
+    archive_image_path: str,
     image_url: str,
 ) -> None:
     if not image_url.startswith("https://"):
         raise ValueError("image_urlはBufferから取得可能なhttps:// URLである必要があります")
     now = _utc_now()
     connection.execute(
-        "UPDATE posts SET image_path = ?, image_url = ?, media_status = 'SUCCESS', "
+        "UPDATE posts SET archive_image_path = ?, image_url = ?, media_status = 'SUCCESS', "
         "media_error = NULL, updated_at = ? WHERE id = ?",
-        (image_path, image_url, now, post_id),
+        (archive_image_path, image_url, now, post_id),
     )
     connection.commit()
 
@@ -250,6 +261,7 @@ def _post_from_row(row: sqlite3.Row) -> Post:
     return Post(
         id=int(row["id"]),
         image_path=str(row["image_path"]),
+        archive_image_path=str(row["archive_image_path"]) or None,
         image_url=str(row["image_url"]),
         media_status=str(row["media_status"]),
         instagram_text=str(row["instagram_text"]),
@@ -275,6 +287,12 @@ def _migrate(connection: sqlite3.Connection) -> None:
         connection.execute("UPDATE posts SET media_status = 'SUCCESS' WHERE image_url <> ''")
     if "media_error" not in columns:
         connection.execute("ALTER TABLE posts ADD COLUMN media_error TEXT")
+    if "archive_image_path" not in columns:
+        connection.execute("ALTER TABLE posts ADD COLUMN archive_image_path TEXT")
+        connection.execute(
+            "UPDATE posts SET archive_image_path = image_path "
+            "WHERE image_url <> '' AND (archive_image_path IS NULL OR archive_image_path = '')"
+        )
     connection.commit()
 
 
