@@ -191,6 +191,24 @@ def test_social_phase_skips_near_duplicate_twitter_text() -> None:
     assert dup.instagram_status == "SUCCESS"  # Instagramは重複チェックの対象外
 
 
+def test_social_phase_strips_urls_from_twitter_text() -> None:
+    connection = connect(":memory:")
+    provider = RecordingSocialProvider()
+    batch = DailyBatch(connection, provider, FolderLayout(Path("tests/_unused")), None)
+
+    _seed_media_ready_post(
+        connection,
+        source_key="withlink",
+        twitter_text="作品はこちら→ https://www.instagram.com/new_ai_tees #aiart",
+    )
+
+    batch.publish_social_once()
+
+    twitter_texts = [text for service, text in provider.calls if service == "twitter"]
+    assert len(twitter_texts) == 1
+    assert "http" not in twitter_texts[0]  # X本文からリンクが除去されている
+
+
 def test_social_phase_uses_published_media_url() -> None:
     root = Path("tests/_runtime_batch_social")
     try:

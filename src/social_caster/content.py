@@ -25,6 +25,16 @@ def _normalize_for_similarity(text: str) -> str:
     return stripped.casefold()
 
 
+# 各投稿に外部リンクが付くとスパム判定に加点されるため、X本文からURLを取り除く。
+# URL直前の誘導記号（→ : など）と前後の空白もまとめて除去する。
+_URL_WITH_LEAD_RE = re.compile(r"[\s　]*[→➡⇒:：—]*[\s　]*https?://\S+")
+
+
+def strip_urls(text: str) -> str:
+    """本文からURL（と直前の誘導記号・余分な空白）を取り除く。"""
+    return _URL_WITH_LEAD_RE.sub("", text).rstrip()
+
+
 def text_similarity(a: str, b: str) -> float:
     """2つの本文の類似度を0.0〜1.0で返す（正規化後の文字列比較）。"""
     left = _normalize_for_similarity(a)

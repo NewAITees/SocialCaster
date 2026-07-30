@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Protocol
 
-from social_caster.content import diversify_hashtags, is_duplicate_text
+from social_caster.content import diversify_hashtags, is_duplicate_text, strip_urls
 from social_caster.database import (
     Post,
     add_pending_post,
@@ -114,7 +114,7 @@ class DailyBatch:
                     error="類似投稿のためXへの投稿をスキップしました（凍結対策）",
                 )
                 continue
-            tweet_text = diversify_hashtags(post.twitter_text, index=post.id)
+            tweet_text = diversify_hashtags(strip_urls(post.twitter_text), index=post.id)
             self._try_post(post, "twitter", post.twitter_status, tweet_text, due_at)
             seen_twitter_texts.append(post.twitter_text)
 

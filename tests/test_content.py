@@ -5,6 +5,7 @@ from social_caster.content import (
     X_MAX_TEXT_LENGTH,
     diversify_hashtags,
     is_duplicate_text,
+    strip_urls,
     validate_instagram_text,
     validate_x_text,
 )
@@ -68,3 +69,17 @@ def test_diversify_hashtags_stays_within_x_limit() -> None:
     text = "あ" * 260 + " #aiart #newaitees"
     result = diversify_hashtags(text, index=1)
     assert len(result) <= X_MAX_TEXT_LENGTH
+
+
+def test_strip_urls_removes_trailing_link_and_connector() -> None:
+    text = "作品はInstagramにも→ https://www.instagram.com/new_ai_tees"
+    assert strip_urls(text) == "作品はInstagramにも"
+
+
+def test_strip_urls_removes_http_and_https() -> None:
+    assert strip_urls("見てね http://example.com と https://example.org だよ") == "見てね と だよ"
+
+
+def test_strip_urls_keeps_text_without_links() -> None:
+    text = "リンクのない普通の本文 #aiart"
+    assert strip_urls(text) == text
