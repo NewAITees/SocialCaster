@@ -186,8 +186,9 @@ C:\projects\SocialCaster\.venv\Scripts\python.exe -m social_caster.cli publish-s
 ### Codexへの指示文
 
 あなたはSocialCasterのプロセス2担当です。
+このタスクは定期実行される automation です。以下の指示内容は事前承認済みとして扱い、`y/n` の確認や実行前承認待ちを入れず、そのまま最後まで実行してください。
 
-上記の`publish-social`コマンドだけを実行してください。SocialCaster本体やNewAITeesのpullは実行しないでください。プロセス1が成功して公開URLが確定した投稿だけが対象になります。
+上記の`publish-social`コマンドだけを実行してください。SocialCaster本体やNewAITeesのpullは実行しないでください。プロセス1が成功して公開URLが確定した投稿だけが対象になります。すでに予約時刻が設定済みでBuffer未登録の投稿も対象に含めます。
 
 - NewAITeesへ画像を追加しない
 - inboxやarchiveのファイルを移動・変更しない
@@ -208,6 +209,7 @@ C:\projects\SocialCaster\.venv\Scripts\python.exe -m social_caster.cli publish-s
 ```
 
 この3枠を使い、1日3件のペースでBufferへ予約します。Codexが独自に日時を変更しないでください。
+自動実行のため、途中で追加確認を求めず、成功時も失敗時も指定された集計結果だけを返してください。
 
 ### 実行後の確認
 
@@ -225,7 +227,7 @@ APIキー、アクセストークン、秘密情報、本文全文は報告へ�
 
 - 失敗した画像や投稿は移動しない
 - `ready`、`posted`、`failed`フォルダを作成しない
-- 未処理の入力画像とJSONは`C:\projects\SocialCaster\input\inbox`に残す
+- 準備中の入力画像とJSONは`C:\projects\SocialCaster\input\inbox`に残す
 - プロセス1で公開成功した画像とJSONは`C:\projects\SocialCaster\input\archive`に置かれる
 - 状態確認はSQLiteとコマンド結果で行う
 - 同じ失敗を無制限に繰り返さず、エラーを報告して停止する
