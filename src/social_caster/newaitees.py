@@ -37,12 +37,18 @@ class NewAITeesPublisher:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(image_path, destination)
         relative_image = destination.relative_to(self._repository_path).as_posix()
-        self._run_git("diff", "--cached", "--quiet")
+        social_name = f"{image_path.stem}.jpg"
+        social_relative = f"assets/gallery-social/{category}/{social_name}"
+        (self._repository_path / "assets" / "gallery-social" / category).mkdir(
+            parents=True, exist_ok=True
+        )
+        self._make_social_variant(relative_image, social_relative)
         self._run("node", "gallery-generator.js", cwd=self._repository_path)
         self._run_git(
             "add",
             "--",
             relative_image,
+            social_relative,
             "assets/js/gallery-data.json",
             "assets/gallery-thumbnails",
         )
@@ -52,7 +58,40 @@ class NewAITeesPublisher:
         if commit.returncode not in (0, 1):
             raise NewAITeesError(commit.stderr.strip() or "NewAITeesのcommitに失敗しました")
         self._run_git("push", "origin", self._branch)
-        return f"{self._pages_base_url}/assets/gallery/{quote(category)}/{quote(image_path.name)}"
+        return (
+            f"{self._pages_base_url}/assets/gallery-social/"
+            f"{quote(category)}/{quote(social_name)}"
+        )
+
+    def _make_social_variant(self, source_relative: str, destination_relative: str) -> None:
+        """SNS投稿用に幅2048pxのJPEGを sharp(node) で生成する（Xの5MB上限対策）。
+
+        高精細な画像は品質85でも5MBを超えることがあるため、上限に収まるまで
+        品質を段階的に下げてから書き出す。
+        """
+        script = (
+            "const sharp=require('sharp');const fs=require('fs');"
+            "const src=process.argv[1];const dest=process.argv[2];"
+            "const LIMIT=5 * 1024 * 1024;const qualities=[85,75,65,55,45];"
+            "(async()=>{"
+            "const base=sharp(src).resize({width:2048,withoutEnlargement:true});"
+            "let last=null;"
+            "for(const q of qualities){"
+            "const buf=await base.clone().jpeg({quality:q,mozjpeg:true}).toBuffer();"
+            "last=buf;"
+            "if(buf.length<=LIMIT){fs.writeFileSync(dest,buf);process.exit(0);}"
+            "}"
+            "fs.writeFileSync(dest,last);process.exit(0);"
+            "})().catch(e=>{console.error(e&&e.message?e.message:e);process.exit(1);});"
+        )
+        self._run(
+            "node",
+            "-e",
+            script,
+            source_relative,
+            destination_relative,
+            cwd=self._repository_path,
+        )
 
     def wait_until_available(
         self,
@@ -81,7 +120,14 @@ class NewAITeesPublisher:
     def _run_git(
         self, *arguments: str, allow_failure: bool = False
     ) -> subprocess.CompletedProcess[str]:
-        return self._run("git", *arguments, cwd=self._repository_path, allow_failure=allow_failure)
+        return self._run(
+            "git",
+            "-c",
+            f"safe.directory={self._repository_path.resolve()}",
+            *arguments,
+            cwd=self._repository_path,
+            allow_failure=allow_failure,
+        )
 
     def _run(
         self,
