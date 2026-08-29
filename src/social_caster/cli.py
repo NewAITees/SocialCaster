@@ -71,7 +71,11 @@ def main() -> None:
         )
         if args.command == "publish-social":
             DailyBatch(
-                connection, provider, FolderLayout(Path("input")), None
+                connection,
+                provider,
+                FolderLayout(Path("input")),
+                None,
+                enable_twitter=settings.enable_twitter,
             ).publish_social_once()
             return
         DailyBatch(
@@ -79,6 +83,7 @@ def main() -> None:
             provider,
             FolderLayout(Path("input")),
             _new_media_publisher(),
+            enable_twitter=settings.enable_twitter,
         ).run_once()
         return
     if args.command == "add-post":

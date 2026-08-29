@@ -13,6 +13,7 @@ class Settings:
     poll_interval_seconds: int = 300
     database_path: Path = Path("database/posts.db")
     log_path: Path = Path("logs/social-caster.log")
+    enable_twitter: bool = True
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -23,6 +24,8 @@ class Settings:
             poll_interval_seconds=int(os.getenv("POLL_INTERVAL_SECONDS", "300")),
             database_path=Path(os.getenv("DATABASE_PATH", "database/posts.db")),
             log_path=Path(os.getenv("LOG_PATH", "logs/social-caster.log")),
+            enable_twitter=os.getenv("ENABLE_TWITTER", "true").strip().lower()
+            not in {"false", "0", "no"},
         )
 
 

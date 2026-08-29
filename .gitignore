@@ -10,6 +10,8 @@ __pycache__/
 !.env.example
 database/*.db
 logs/*.log
+gcm-diagnose.log
+automations/**/logs/
 NewAITees/
 input/ready/*
 input/failed/*
