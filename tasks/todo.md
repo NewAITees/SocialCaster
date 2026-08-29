@@ -33,7 +33,7 @@
 - [x] 画像公開とBuffer投稿を順番に処理する日次バッチを実装する
 - [x] 投稿済み入力の重複処理を防止するsource_keyを追加する
 - [x] Windowsタスクスケジューラ登録スクリプトを作る
-- [ ] 実機でタスクスケジューラへ登録する（ユーザー実行待ち）
+- [x] 実機でタスクスケジューラへ登録する（`\SocialCaster-Process1-PublishMedia` として登録済み）
 
 ## NewAITees連携・コミット
 - [x] NewAITeesを独立リポジトリとして親リポジトリから除外する
@@ -115,5 +115,14 @@
 - [x] `automation/run-socialcaster.ps1` … ラッパー（claude分析→publish-media→成功ゲート→publish-social→ログ）
 - [x] エンコーディング(UTF-8 BOM/$OutputEncoding)とグローバルCLAUDE.md非ロード(--setting-sources project)を解決
 - [x] ドライランで3枚分析→JSON生成→仕様検証（カテゴリ/文字数/タグ）まで確認
-- [ ] `schtasks` 登録（システム変更のため別途y/n）
-- [ ] 本番1回を実機で走らせ、publish-media→ゲート→publish-social まで確認
+- [x] `schtasks` 登録（`\SocialCaster-Process1-PublishMedia`、毎日07:00）
+- [x] 本番1回を実機で走らせ、publish-media→ゲート→publish-social まで確認（2026-08-18以降、連日 exit 0）
+
+## 2026-08-30 進捗確認で判明した残課題
+- [x] `ENABLE_TWITTER` を `DailyBatch` へ配線し、テストを追加する
+- [x] 2026-08-28 の分析記録を automation の `memory.md` へマージする
+- [ ] 2026-08-29 の自動実行が欠落した原因を確認する（ログ・タスク履歴ともになし。PC停止の可能性）
+- [ ] `prompt.md` のハッシュタグ数・本文文字数の確定版仕様を記録する（10個/150字 → 20個/250字へ変更された経緯が未記録）
+- [ ] `tests/test_batch.py` の `_seed_media_ready_post` の型注釈（`connection: object`）を修正し `mypy` を通す
+- [ ] 未追跡の `scripts/_verify_*.py` 18件を整理する（ruff エラー40件の全てがこれら）
+- [ ] `feature/anti-freeze-safeguards` を main へマージし push する
