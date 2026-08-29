@@ -103,7 +103,7 @@ class DailyBatch:
         seen_twitter_texts = posted_twitter_texts(self._connection)
         for post in scheduled_posts(self._connection):
             due_at = post.publish_at
-            if due_at and due_at <= datetime.now(UTC).isoformat(timespec="seconds"):
+            if due_at and datetime.fromisoformat(due_at) <= datetime.now(UTC):
                 due_at = None
             self._try_post(post, "instagram", post.instagram_status, post.instagram_text, due_at)
             if not self._enable_twitter:

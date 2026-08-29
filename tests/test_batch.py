@@ -4,6 +4,7 @@ import shutil
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import patch
 
 from social_caster.batch import (
     SCHEDULE_JITTER_MAX_MINUTES,
@@ -139,6 +140,15 @@ class RecordingSocialProvider:
         return f"{service}-1"
 
 
+class DueAtRecordingProvider:
+    def __init__(self) -> None:
+        self.due_at_values: list[str | None] = []
+
+    def post(self, *, service: str, text: str, image_url: str, due_at: str | None = None) -> str:
+        self.due_at_values.append(due_at)
+        return f"{service}-1"
+
+
 def _seed_media_ready_post(
     connection: sqlite3.Connection, *, source_key: str, twitter_text: str
 ) -> int:
@@ -170,6 +180,31 @@ def test_refill_amount_is_zero_when_target_is_met() -> None:
 
 def test_refill_amount_is_clamped_to_reservation_cap() -> None:
     assert refill_amount(current_stock=8, target_stock=12, reservation_cap=10) == 2
+
+
+def test_future_jst_publish_at_remains_scheduled_against_utc_now() -> None:
+    from social_caster.database import assign_publish_at
+
+    connection = connect(":memory:")
+    provider = DueAtRecordingProvider()
+    post_id = _seed_media_ready_post(
+        connection, source_key="future-jst", twitter_text="x本文"
+    )
+    publish_at = "2026-08-31T01:05:00+09:00"
+    assign_publish_at(connection, post_id=post_id, publish_at=publish_at)
+    batch = DailyBatch(
+        connection,
+        provider,
+        FolderLayout(Path("tests/_unused")),
+        None,
+        enable_twitter=False,
+    )
+
+    with patch("social_caster.batch.datetime", wraps=datetime) as mocked_datetime:
+        mocked_datetime.now.return_value = datetime(2026, 8, 30, 16, 0, tzinfo=UTC)
+        batch.publish_social_once()
+
+    assert provider.due_at_values == [publish_at]
 
 
 def test_social_phase_skips_near_duplicate_twitter_text() -> None:
