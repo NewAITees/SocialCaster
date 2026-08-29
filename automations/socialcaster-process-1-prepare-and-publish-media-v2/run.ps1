@@ -11,6 +11,7 @@ $promptFile = Join-Path $autoDir "prompt.md"
 $logDir = Join-Path $autoDir "logs"
 $memoryFile = Join-Path $autoDir "memory.md"
 $statusFile = Join-Path $root "automation\status.py"
+$verifyManifests = Join-Path $root "scripts\verify_manifests.py"
 $inbox = Join-Path $root "input\inbox"
 $python = Join-Path $root ".venv\Scripts\python.exe"
 $maxIterations = 10
@@ -79,6 +80,12 @@ try {
         $prompt | claude -p --add-dir $root --allowedTools "Read Write Glob" --output-format text 2>&1 |
             Out-File -FilePath $logFile -Encoding utf8 -Append
         if ($LASTEXITCODE -ne 0) { throw "claude JSON generation failed (exit=$LASTEXITCODE)" }
+
+        Add-Content -Path $logFile -Value "==== validation: verify-manifests ===="
+        & $python $verifyManifests 2>&1 |
+            Out-File -FilePath $logFile -Encoding utf8 -Append
+        $validationExit = $LASTEXITCODE
+        if ($validationExit -ne 0) { throw "manifest validation failed (exit=$validationExit)" }
 
         Add-Content -Path $logFile -Value "==== step2: publish-media, count=$count ===="
         & $python -m social_caster.cli publish-media --count $count 2>&1 |

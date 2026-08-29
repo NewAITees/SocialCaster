@@ -166,3 +166,17 @@
 - [x] JSTオフセット付き過去時刻を在庫に数えない回帰テストを追加した
 - [x] 壊れたpytest一時ディレクトリ3件をACL復旧後に削除した
 - [x] pytest・ruff・mypy・PowerShell構文とfinally追記経路を検証した
+
+## 2026-08-30 manifest検証スクリプト統合
+- [ ] scripts/verify_manifests.py を現行prompt仕様で実装する
+- [ ] run.ps1 のJSON生成後・publish-media前へ検証を組み込む
+- [ ] scripts/_verify_* の使い捨て18件を削除する
+- [ ] 正常系と各違反ケースの回帰テストを追加する
+- [ ] pytest・プロジェクト全体ruff・mypyを通す
+
+### 2026-08-30 manifest検証スクリプト統合 完了状況（追記）
+- [x] scripts/verify_manifests.py を現行prompt仕様で実装した
+- [x] run.ps1 のJSON生成後・publish-media前へ検証ゲートを組み込んだ
+- [x] scripts/_verify_* の使い捨て18件を削除した
+- [x] 正常系と各指定違反ケースの回帰テスト14件を追加した
+- [x] pytest・プロジェクト全体ruff・mypy・PowerShell構文を検証した
