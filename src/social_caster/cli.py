@@ -17,21 +17,7 @@ from social_caster.scheduler import Scheduler
 
 def main() -> None:
     load_dotenv()
-    parser = argparse.ArgumentParser(prog="social-caster")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("init-db")
-    subparsers.add_parser("auth-check")
-    subparsers.add_parser("daily-batch")
-    subparsers.add_parser("publish-media")
-    subparsers.add_parser("publish-social")
-    add_parser = subparsers.add_parser("add-post")
-    add_parser.add_argument("--image-path", required=True)
-    add_parser.add_argument("--image-url", required=True)
-    add_parser.add_argument("--instagram-text", required=True)
-    add_parser.add_argument("--twitter-text", required=True)
-    add_parser.add_argument("--publish-at", required=True, help="ISO 8601日時")
-    subparsers.add_parser("run-once")
-    subparsers.add_parser("run")
+    parser = _build_parser()
     args = parser.parse_args()
 
     if args.command == "init-db":
@@ -58,7 +44,7 @@ def main() -> None:
             FolderLayout(Path("input")),
             _new_media_publisher(),
         )
-        batch.publish_media_once()
+        batch.publish_media_once(args.count)
         return
 
     settings = Settings.from_env()
@@ -76,7 +62,7 @@ def main() -> None:
                 FolderLayout(Path("input")),
                 None,
                 enable_twitter=settings.enable_twitter,
-            ).publish_social_once()
+            ).publish_social_once(args.count)
             return
         DailyBatch(
             connection,
@@ -110,6 +96,27 @@ def main() -> None:
         scheduler.process_once()
     else:
         scheduler.run_forever(settings.poll_interval_seconds)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="social-caster")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers.add_parser("init-db")
+    subparsers.add_parser("auth-check")
+    subparsers.add_parser("daily-batch")
+    media_parser = subparsers.add_parser("publish-media")
+    media_parser.add_argument("--count", type=int, default=DailyBatch.MEDIA_PER_RUN)
+    social_parser = subparsers.add_parser("publish-social")
+    social_parser.add_argument("--count", type=int, default=DailyBatch.SOCIAL_POSTS_PER_RUN)
+    add_parser = subparsers.add_parser("add-post")
+    add_parser.add_argument("--image-path", required=True)
+    add_parser.add_argument("--image-url", required=True)
+    add_parser.add_argument("--instagram-text", required=True)
+    add_parser.add_argument("--twitter-text", required=True)
+    add_parser.add_argument("--publish-at", required=True, help="ISO 8601日時")
+    subparsers.add_parser("run-once")
+    subparsers.add_parser("run")
+    return parser
 
 
 def _validate_datetime(value: str) -> None:

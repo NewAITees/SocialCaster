@@ -1,6 +1,7 @@
 import json
 import random
 import shutil
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from social_caster.batch import (
     DailyBatch,
     FolderLayout,
     _next_schedule_slots,
+    refill_amount,
 )
 from social_caster.database import connect, get_post_by_source_key
 
@@ -138,7 +140,7 @@ class RecordingSocialProvider:
 
 
 def _seed_media_ready_post(
-    connection: object, *, source_key: str, twitter_text: str
+    connection: sqlite3.Connection, *, source_key: str, twitter_text: str
 ) -> int:
     from social_caster.database import add_pending_post, mark_media_success
 
@@ -156,6 +158,18 @@ def _seed_media_ready_post(
         image_url="https://newaitees.github.io/NewAITees/assets/gallery-social/other/x.jpg",
     )
     return post_id
+
+
+def test_refill_amount_uses_target_difference() -> None:
+    assert refill_amount(current_stock=4, target_stock=9, reservation_cap=10) == 5
+
+
+def test_refill_amount_is_zero_when_target_is_met() -> None:
+    assert refill_amount(current_stock=9, target_stock=9, reservation_cap=10) == 0
+
+
+def test_refill_amount_is_clamped_to_reservation_cap() -> None:
+    assert refill_amount(current_stock=8, target_stock=12, reservation_cap=10) == 2
 
 
 def test_social_phase_skips_near_duplicate_twitter_text() -> None:

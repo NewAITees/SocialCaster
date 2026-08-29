@@ -79,7 +79,7 @@ class DailyBatch:
         self.publish_media_once()
         self.publish_social_once()
 
-    def publish_media_once(self) -> None:
+    def publish_media_once(self, count: int = MEDIA_PER_RUN) -> None:
         media_publisher = self._media_publisher
         if media_publisher is None:
             raise RuntimeError("画像公開処理が設定されていません")
@@ -88,13 +88,13 @@ class DailyBatch:
             self._layout.inbox.glob("*.json"),
             key=lambda path: (self._publish_at(path), path.name),
         )
-        for manifest_path in manifests[: self.MEDIA_PER_RUN]:
+        for manifest_path in manifests[:count]:
             self._publish_media_manifest(manifest_path)
 
-    def publish_social_once(self) -> None:
+    def publish_social_once(self, count: int = SOCIAL_POSTS_PER_RUN) -> None:
         if self._provider is None:
             raise RuntimeError("SNS投稿処理が設定されていません")
-        unscheduled = unscheduled_posts(self._connection, limit=self.SOCIAL_POSTS_PER_RUN)
+        unscheduled = unscheduled_posts(self._connection, limit=count)
         slots = _next_schedule_slots(
             self._connection, count=len(unscheduled), now=datetime.now(UTC)
         )
@@ -226,6 +226,11 @@ def _next_schedule_slots(
 
 
 _JST = timezone(timedelta(hours=9))
+
+
+def refill_amount(*, current_stock: int, target_stock: int, reservation_cap: int) -> int:
+    """Return the needed refill without exceeding Buffer's reservation cap."""
+    return max(0, min(target_stock - current_stock, reservation_cap - current_stock))
 
 
 def _read_manifest(path: Path) -> dict[str, object]:

@@ -14,6 +14,8 @@ class Settings:
     database_path: Path = Path("database/posts.db")
     log_path: Path = Path("logs/social-caster.log")
     enable_twitter: bool = True
+    target_stock: int = 9
+    buffer_reservation_cap: int = 10
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -26,6 +28,8 @@ class Settings:
             log_path=Path(os.getenv("LOG_PATH", "logs/social-caster.log")),
             enable_twitter=os.getenv("ENABLE_TWITTER", "true").strip().lower()
             not in {"false", "0", "no"},
+            target_stock=int(os.getenv("TARGET_STOCK", "9")),
+            buffer_reservation_cap=int(os.getenv("BUFFER_RESERVATION_CAP", "10")),
         )
 
 

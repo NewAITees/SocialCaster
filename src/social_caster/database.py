@@ -182,6 +182,21 @@ def scheduled_posts(connection: sqlite3.Connection) -> list[Post]:
     return [_post_from_row(row) for row in rows]
 
 
+def stock_count(connection: sqlite3.Connection, *, now: str | None = None) -> int:
+    """Count future Instagram reservations successfully accepted by Buffer."""
+    current = now or _utc_now()
+    row = connection.execute(
+        """
+        SELECT COUNT(*)
+        FROM posts
+        WHERE julianday(publish_at) > julianday(?)
+          AND instagram_status = 'SUCCESS'
+        """,
+        (current,),
+    ).fetchone()
+    return int(row[0])
+
+
 def posted_twitter_texts(connection: sqlite3.Connection) -> list[str]:
     """既にXへ投稿成功した本文の一覧（重複チェックの基準に使う）。"""
     rows = connection.execute(

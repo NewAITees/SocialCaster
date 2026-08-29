@@ -126,3 +126,43 @@
 - [ ] `tests/test_batch.py` の `_seed_media_ready_post` の型注釈（`connection: object`）を修正し `mypy` を通す
 - [ ] 未追跡の `scripts/_verify_*.py` 18件を整理する（ruff エラー40件の全てがこれら）
 - [x] `feature/anti-freeze-safeguards` を main へマージし push する（2026-08-30、18コミットを origin/main へ反映）
+
+## 2026-08-30 投稿在庫トップアップ機能（承認済み計画）
+- [ ] 現在地・環境・既存タスク・対象実装を確認する
+- [ ] 投稿在庫数と補充数（目標・上限クランプ）を実装する
+- [ ] status.py に STOCK 出力を追加する
+- [ ] publish-media / publish-social に件数引数を追加する
+- [ ] Settings と .env.example に目標在庫9・予約上限10を追加する
+- [ ] run.ps1 を在庫再計算付き反復処理へ変更する
+- [ ] prompt.md を生成件数パラメーター対応にする
+- [ ] 在庫・補充・上限・CLI件数のテストを追加する
+- [ ] 既存 test_batch.py の型注釈を修正する
+- [ ] pytest・ruff・mypy をすべて通す
+- [ ] 自己レビューし lessons.md と本進捗を更新する
+
+### 2026-08-30 完了状況（追記）
+- [x] 現在地・環境・既存タスク・対象実装を確認した
+- [x] 投稿在庫数と補充数（目標・上限クランプ）を実装した
+- [x] status.py に STOCK 出力を追加した
+- [x] publish-media / publish-social に省略時3の `--count` を追加した
+- [x] Settings と .env.example に目標在庫9・予約上限10を追加した
+- [x] run.ps1 を在庫再計算・最大10反復・入力枯渇停止へ変更した
+- [x] prompt.md を `{{COUNT}}` パラメーター対応にした
+- [x] 在庫・補充・上限・CLI件数のテストを追加した
+- [x] test_batch.py の接続型注釈を sqlite3.Connection に修正した
+- [x] pytest 37件、ruff、mypy の最終検証を完了した
+- [x] 自己レビューし lessons.md を更新した
+
+## 2026-08-30 投稿在庫トップアップ レビュー指摘修正
+- [ ] stock_count のタイムゾーン比較を実時刻比較へ修正する
+- [ ] run.ps1 の失敗時も memory.md へ結果を記録する
+- [ ] JSTオフセット付き過去時刻の回帰テストを追加する
+- [ ] 壊れたpytest一時ディレクトリ3件を削除する
+- [ ] pytest・ruff・mypy・PowerShell構文を検証する
+
+### 2026-08-30 レビュー指摘修正 完了状況（追記）
+- [x] stock_count を SQLite julianday によるオフセット解釈付き実時刻比較へ修正した
+- [x] run.ps1 を try/catch/finally 化し、失敗時も停止理由とexit結果を memory.md へ追記するよう修正した
+- [x] JSTオフセット付き過去時刻を在庫に数えない回帰テストを追加した
+- [x] 壊れたpytest一時ディレクトリ3件をACL復旧後に削除した
+- [x] pytest・ruff・mypy・PowerShell構文とfinally追記経路を検証した
