@@ -122,7 +122,7 @@
 - [x] `ENABLE_TWITTER` を `DailyBatch` へ配線し、テストを追加する
 - [x] 2026-08-28 の分析記録を automation の `memory.md` へマージする
 - [ ] 2026-08-29 の自動実行が欠落した原因を確認する（ログ・タスク履歴ともになし。PC停止の可能性）
-- [ ] `prompt.md` のハッシュタグ数・本文文字数の確定版仕様を記録する（10個/150字 → 20個/250字へ変更された経緯が未記録）
+- [x] `prompt.md` のハッシュタグ数・本文文字数の確定版仕様を記録する（未コミットだった現行 prompt.md をコミットし git 管理下に置いた。確定版は IG 日本語250字・英語250字・小文字タグ20個・本文にXリンク、twitter_text は280字・タグ0〜2個・リンクなし）
 - [ ] `tests/test_batch.py` の `_seed_media_ready_post` の型注釈（`connection: object`）を修正し `mypy` を通す
 - [ ] 未追跡の `scripts/_verify_*.py` 18件を整理する（ruff エラー40件の全てがこれら）
-- [ ] `feature/anti-freeze-safeguards` を main へマージし push する
+- [x] `feature/anti-freeze-safeguards` を main へマージし push する（2026-08-30、18コミットを origin/main へ反映）
