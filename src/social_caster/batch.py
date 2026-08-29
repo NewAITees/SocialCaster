@@ -65,11 +65,13 @@ class DailyBatch:
         provider: SocialProvider | None,
         layout: FolderLayout,
         media_publisher: MediaPublisher | None,
+        enable_twitter: bool = True,
     ) -> None:
         self._connection = connection
         self._provider = provider
         self._layout = layout
         self._media_publisher = media_publisher
+        self._enable_twitter = enable_twitter
 
     def run_once(self) -> None:
         if self._media_publisher is None:
@@ -104,6 +106,8 @@ class DailyBatch:
             if due_at and due_at <= datetime.now(UTC).isoformat(timespec="seconds"):
                 due_at = None
             self._try_post(post, "instagram", post.instagram_status, post.instagram_text, due_at)
+            if not self._enable_twitter:
+                continue
             if post.twitter_status != "SUCCESS" and is_duplicate_text(
                 post.twitter_text, seen_twitter_texts
             ):

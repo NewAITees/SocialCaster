@@ -209,6 +209,47 @@ def test_social_phase_strips_urls_from_twitter_text() -> None:
     assert "http" not in twitter_texts[0]  # X本文からリンクが除去されている
 
 
+def test_social_phase_skips_twitter_when_disabled() -> None:
+    connection = connect(":memory:")
+    provider = RecordingSocialProvider()
+    batch = DailyBatch(
+        connection,
+        provider,
+        FolderLayout(Path("tests/_unused")),
+        None,
+        enable_twitter=False,
+    )
+
+    _seed_media_ready_post(connection, source_key="disabled", twitter_text="x本文 #aiart")
+
+    batch.publish_social_once()
+
+    services = [service for service, _ in provider.calls]
+    assert services == ["instagram"]  # Xへは一度も投稿されない
+
+    post = get_post_by_source_key(connection, "disabled")
+    assert post is not None
+    assert post.instagram_status == "SUCCESS"
+    assert post.twitter_status == "WAIT"  # 失敗扱いにせず未処理のまま残す
+
+
+def test_social_phase_posts_twitter_when_enabled_by_default() -> None:
+    connection = connect(":memory:")
+    provider = RecordingSocialProvider()
+    batch = DailyBatch(connection, provider, FolderLayout(Path("tests/_unused")), None)
+
+    _seed_media_ready_post(connection, source_key="enabled", twitter_text="x本文 #aiart")
+
+    batch.publish_social_once()
+
+    services = [service for service, _ in provider.calls]
+    assert services == ["instagram", "twitter"]
+
+    post = get_post_by_source_key(connection, "enabled")
+    assert post is not None
+    assert post.twitter_status == "SUCCESS"
+
+
 def test_social_phase_uses_published_media_url() -> None:
     root = Path("tests/_runtime_batch_social")
     try:
