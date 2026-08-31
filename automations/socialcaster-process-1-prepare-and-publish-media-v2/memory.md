@@ -171,3 +171,43 @@ Automation ID: socialcaster-process-1-prepare-and-publish-media-v2
 - publish-social exit: 0
 - log: 20260828_070002.log
 
+## 2026-08-30 02:28:15
+- stop reason: claude JSON generation failed (exit=1)
+- log: 20260830_022730.log
+
+## 2026-08-30 02:28:15
+- publish-media exit: 0
+- publish-social exit: 0
+- log: 20260830_022730.log
+
+## 2026-08-30（JSON生成 9件）
+- 実行日時: 2026-08-30
+- 処理した画像（JSON新規作成）:
+  - random_20251113_120933_0045.png — カテゴリ: abstract_image
+  - random_20251113_123143_0019.png — カテゴリ: bottled_image
+  - random_20251113_123454_0030.png — カテゴリ: bottled_image
+  - random_20251118_110138_0003.png — カテゴリ: horror
+  - random_20251118_110814_0025.png — カテゴリ: abstract_image
+  - random_20251118_111525_0049.png — カテゴリ: other
+  - random_20251118_111655_0054.png — カテゴリ: monochrome
+  - random_20251118_111924_0062.png — カテゴリ: other
+  - random_20251118_112146_0070.png — カテゴリ: horror
+- 備考: 今回の指定件数は9件。input/inbox 内で同名JSON未作成の画像をファイル名順に先頭から9枚選定。既存JSONの再生成なし・画像移動なし。内容は設計図上に並ぶ7つの折り紙標本／球体ガラスに封じた水没黄金都市／ガラスドームの中の琥珀色の街／エメラルドを詰めた銀の頭蓋／金の回路で描かれた瞳と赤い枯れ木／緑の顔の機械人／歯車を共有する背中合わせの二つの横顔／琥珀レンズを持つ白磁のサイボーグ／銅線が溢れ出す白い顔。なお random_20251113_120933_0045.png は 2026-08-26 の記録に載っているがJSONが存在しなかったため、今回あらためて生成した。検証: 9件とも画像存在・image名とJSONファイル名一致・カテゴリ有効・IG本文は日本語105〜120字前後／英語147〜179字（scripts/verify_manifests.py と同じ数え方＝ハッシュタグ除去後の本文長。いずれも250字以内、英語本文末にXリンク）・小文字ハッシュタグ20個（必須4個含む・重複なし）・twitter_text はリンクなしでタグ2個・publish_at不付与。本セッションではコマンド実行が未承認のため scripts/verify_manifests.py を実行できず、同スクリプトの判定条件に沿って手動で文字数計算と目視確認を行った。初稿は9件とも英語本文が250字を超えていたため、全件を短縮して書き直している。
+## 2026-08-30 07:44:14
+- stop reason: target stock reached
+- log: 20260830_070002.log
+
+## 2026-08-30 07:44:14
+- publish-media exit: 0
+- publish-social exit: 0
+- log: 20260830_070002.log
+
+## 2026-08-31 07:00:10
+- stop reason: Ignoring 5 permissions.allow entries from .claude/settings.local.json: this workspace has not been trusted. Run Claude Code interactively here once and accept the trust dialog, or set projects["C:/projects/SocialCaster"].hasTrustDialogAccepted: true in C:\Users\rdptest\.claude.json.
+- log: 20260831_070003.log
+
+## 2026-08-31 07:00:10
+- publish-media exit: 0
+- publish-social exit: 0
+- log: 20260831_070003.log
+

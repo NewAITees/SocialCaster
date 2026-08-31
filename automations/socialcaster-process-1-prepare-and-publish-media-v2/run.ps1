@@ -26,8 +26,18 @@ $logFile = Join-Path $logDir "$timestamp.log"
 Set-Location $root
 
 function Get-Status {
-    $raw = & $python $statusFile
-    if ($LASTEXITCODE -ne 0) { throw "status.py failed (exit=$LASTEXITCODE)" }
+    $savedErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $raw = & $python $statusFile 2>&1
+        $statusExit = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $savedErrorActionPreference
+    }
+    $raw | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } |
+        Out-File -FilePath $logFile -Encoding utf8 -Append
+    if ($statusExit -ne 0) { throw "status.py failed (exit=$statusExit)" }
     $values = @{}
     foreach ($token in ($raw -split '\s+')) {
         if ($token -match '^(\w+)=(\d+)$') { $values[$matches[1]] = [int]$matches[2] }
@@ -77,27 +87,57 @@ try {
 
         # claudeはJSON生成だけを担当し、公開・投稿はPythonを直接実行する。
         Add-Content -Path $logFile -Value "==== step1: json generation (claude), count=$count ===="
-        $prompt | claude -p --add-dir $root --allowedTools "Read Write Glob" --output-format text 2>&1 |
-            Out-File -FilePath $logFile -Encoding utf8 -Append
-        if ($LASTEXITCODE -ne 0) { throw "claude JSON generation failed (exit=$LASTEXITCODE)" }
+        $savedErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            $prompt | claude -p --add-dir $root --allowedTools "Read Write Glob" `
+                --output-format text 2>&1 |
+                Out-File -FilePath $logFile -Encoding utf8 -Append
+            $claudeExit = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $savedErrorActionPreference
+        }
+        if ($claudeExit -ne 0) { throw "claude JSON generation failed (exit=$claudeExit)" }
 
         Add-Content -Path $logFile -Value "==== validation: verify-manifests ===="
-        & $python $verifyManifests 2>&1 |
-            Out-File -FilePath $logFile -Encoding utf8 -Append
-        $validationExit = $LASTEXITCODE
+        $savedErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            & $python $verifyManifests 2>&1 |
+                Out-File -FilePath $logFile -Encoding utf8 -Append
+            $validationExit = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $savedErrorActionPreference
+        }
         if ($validationExit -ne 0) { throw "manifest validation failed (exit=$validationExit)" }
 
         Add-Content -Path $logFile -Value "==== step2: publish-media, count=$count ===="
-        & $python -m social_caster.cli publish-media --count $count 2>&1 |
-            Out-File -FilePath $logFile -Encoding utf8 -Append
-        $mediaExit = $LASTEXITCODE
+        $savedErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            & $python -m social_caster.cli publish-media --count $count 2>&1 |
+                Out-File -FilePath $logFile -Encoding utf8 -Append
+            $mediaExit = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $savedErrorActionPreference
+        }
         if ($mediaExit -ne 0) { throw "publish-media failed (exit=$mediaExit)" }
 
         # ENABLE_TWITTER=false の間はXへ投稿せず、Instagramだけを予約する。
         Add-Content -Path $logFile -Value "==== step3: publish-social, count=$count ===="
-        & $python -m social_caster.cli publish-social --count $count 2>&1 |
-            Out-File -FilePath $logFile -Encoding utf8 -Append
-        $socialExit = $LASTEXITCODE
+        $savedErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            & $python -m social_caster.cli publish-social --count $count 2>&1 |
+                Out-File -FilePath $logFile -Encoding utf8 -Append
+            $socialExit = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $savedErrorActionPreference
+        }
         if ($socialExit -ne 0) { throw "publish-social failed (exit=$socialExit)" }
     }
 
