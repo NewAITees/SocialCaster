@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::InputEncoding = [System.Text.Encoding]::UTF8
@@ -90,8 +90,8 @@ try {
         $savedErrorActionPreference = $ErrorActionPreference
         try {
             $ErrorActionPreference = "Continue"
-            $prompt | claude -p --add-dir $root --allowedTools "Read Write Glob" `
-                --output-format text 2>&1 |
+            $prompt | claude -p --setting-sources project --add-dir $root `
+                --allowedTools "Read Write Glob" --output-format text 2>&1 |
                 Out-File -FilePath $logFile -Encoding utf8 -Append
             $claudeExit = $LASTEXITCODE
         }

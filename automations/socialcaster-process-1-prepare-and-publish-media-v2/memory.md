@@ -211,3 +211,37 @@ Automation ID: socialcaster-process-1-prepare-and-publish-media-v2
 - publish-social exit: 0
 - log: 20260831_070003.log
 
+## 2026-08-31（JSON生成 4件）
+- 実行日時: 2026-08-31
+- 処理した画像（JSON新規作成）:
+  - random_20251118_112410_0078.png — カテゴリ: other
+  - random_20251118_112936_0096.png — カテゴリ: other
+  - random_20251118_113749_0018.png — カテゴリ: horror
+  - random_20251118_120103_0099.png — カテゴリ: monochrome
+- 備考: 今回の指定件数は4件。input/inbox 内で同名JSON未作成の画像をファイル名順に先頭から4枚選定。既存JSONの再生成なし・画像移動なし。内容はエメラルドの光と真鍮の歯車をまとうひび割れた顔／後頭部装甲を開いた翡翠肌のアンドロイド／銅版画風の荒野に浮かぶ棘だらけの巨大な赤い眼球／木炭の激しい線で描かれた動物の目（モノクロ）。検証: 4件とも画像存在・image名とJSONファイル名一致・カテゴリ有効・IG本文は日本語128〜135字前後／英語222〜235字（scripts/verify_manifests.py と同じ数え方＝ハッシュタグ除去後の本文長。いずれも250字以内、英語本文末尾にXリンク）・小文字ハッシュタグ20個（必須4個含む・重複なし）・twitter_text はリンクなしでタグ2個・publish_at不付与。本セッションではコマンド実行が未承認のため scripts/verify_manifests.py を実行できず、同スクリプトの判定条件に沿って手動で文字数計算と目視確認を行った。なお run.ps1 側の検証ステップでは verify_manifests.py が実行され「All manifests are valid.」を記録している。本記録は待避ファイルから 2026-09-01 にマージした。
+
+## 2026-08-31 16:13:37
+- stop reason: target stock reached
+- log: 20260831_155314.log
+
+## 2026-08-31 16:13:37
+- publish-media exit: 0
+- publish-social exit: 0
+- log: 20260831_155314.log
+
+## 2026-09-01（JSON生成 2件）
+- 実行日時: 2026-09-01
+- 処理した画像（JSON新規作成）:
+  - random_20251119_110641_0044.png — カテゴリ: monochrome
+  - random_20251119_111528_0073.png — カテゴリ: horror
+- 備考: 今回の指定件数は2件。input/inbox 内で同名JSON未作成の画像をファイル名順に先頭から2枚選定。既存JSONの再生成なし・画像移動なし。内容は墨と水彩で描かれた巨大なホホジロザメと周囲を泳ぐ小魚（モノクロ）／星空の下で銀色の球体を取り囲む銅版画風の霜の棘。検証: 2件とも画像存在・image名とJSONファイル名一致・カテゴリ有効・IG本文は日本語130/135字前後・英語226/225字（scripts/verify_manifests.py と同じ数え方＝ハッシュタグ除去後の本文長。いずれも250字以内、英語本文末尾にXリンク）・小文字ハッシュタグ20個（必須4個含む・重複なし）・twitter_text はリンクなしでタグ2個・publish_at不付与。本記録は待避ファイルから 2026-09-01 にマージした。
+
+## 2026-09-01 07:08:19
+- stop reason: target stock reached
+- log: 20260901_070003.log
+
+## 2026-09-01 07:08:19
+- publish-media exit: 0
+- publish-social exit: 0
+- log: 20260901_070003.log
+

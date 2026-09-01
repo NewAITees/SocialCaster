@@ -3,7 +3,7 @@
 ## INDEX（追記・修正のたびに必ず更新すること）
 | カテゴリ     | 説明                          | 開始行 | 件数 |
 |--------------|-------------------------------|--------|------|
-| meta         | AIとの協働ルール              | -      | 2    |
+| meta         | AIとの協働ルール              | -      | 3    |
 | boundary     | データ型・変換・境界契約      | -      | 2    |
 | architecture | 設計・責務・config            | -      | 6    |
 | quality      | テスト・CI/CD・品質保証       | -      | 4    |
@@ -26,6 +26,11 @@
 - **症状**: スケジュールから `claude -p` を呼ぶと、(1)ユーザーグローバル`~/.claude/CLAUDE.md`の5原則を毎回出力し第1原則のy/n待ちでファイル生成を拒否、(2)PowerShell 5.1のパイプでUTF-8プロンプトが`?`に化けた。
 - **原因**: (1)ヘッドレスでもユーザーmemory(CLAUDE.md)が自動ロードされ、対話用の運用原則が自動化を止める。(2)PS5.1は native コマンドへのパイプ既定エンコーディングがASCII。`--bare`はCLAUDE.md非ロードだがkeychain読取を切りANTHROPIC_API_KEY必須（別課金）になるため不可。
 - **対策**: サブスク認証を維持したまま `claude -p --setting-sources project` でユーザーグローバルCLAUDE.mdを外す（実測で原則検出0件）。パイプは`$OutputEncoding`と`[Console]::OutputEncoding`をUTF-8に設定し、プロンプトは`Get-Content -Raw -Encoding UTF8`で渡す。.ps1自体もUTF-8 BOM付きで保存する。
+
+### [lessons.mdの知見が新スクリプトへ引き継がれなかった]
+- **症状**: 2026-09-01、稼働中の `automations/socialcaster-process-1-prepare-and-publish-media-v2/run.ps1` で (1)日本語コメントの次行が実行されない (2)claudeが毎回pendingファイルを作り memory.md へ追記しない、が発生。原因は上の「無人claude -p」の項目に既に記録済みの2点（UTF-8 BOM無し／`--setting-sources project` 無し）そのものだった。
+- **原因**: 知見は `automation/run-socialcaster.ps1` に対して得られ lessons.md にも記録されたが、後から別ディレクトリに作られた `automations/.../run.ps1` へ適用されなかった。同じ役割のスクリプトが2つあり、新しい方が対策を引き継がないまま本番稼働していた。BOM無しの.ps1をPS5.1がANSIとして読むと日本語コメントが化け、末尾が行継続として解釈されて次行を飲み込む（今回は step1/step3 のログ行が消えた）。
+- **対策**: 無人実行する .ps1 を新規作成・複製したら、稼働前に必ず「UTF-8 BOM付きか」「`--setting-sources project` を渡しているか」を確認する。既存の同種スクリプトがあれば差分を取り、対策が漏れていないか照合する。BOMの確認は先頭3バイトが `EF BB BF` かで判定できる。
 
 ## boundary — データ型・変換・境界契約
 ### [サブカテゴリ: タイトル]
