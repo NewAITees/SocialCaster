@@ -59,8 +59,7 @@ class NewAITeesPublisher:
             raise NewAITeesError(commit.stderr.strip() or "NewAITeesのcommitに失敗しました")
         self._run_git("push", "origin", self._branch)
         return (
-            f"{self._pages_base_url}/assets/gallery-social/"
-            f"{quote(category)}/{quote(social_name)}"
+            f"{self._pages_base_url}/assets/gallery-social/{quote(category)}/{quote(social_name)}"
         )
 
     def _make_social_variant(self, source_relative: str, destination_relative: str) -> None:

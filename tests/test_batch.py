@@ -90,9 +90,7 @@ def test_schedule_slots_cover_evening_and_next_day_morning() -> None:
     now = datetime(2026, 7, 25, 7, 0, tzinfo=UTC)
 
     # 分ゆらぎを0に固定すると基準時刻どおりになる。
-    slots = _next_schedule_slots(
-        connection, count=3, now=now, rng=_ZeroJitterRandom()
-    )
+    slots = _next_schedule_slots(connection, count=3, now=now, rng=_ZeroJitterRandom())
 
     assert slots == [
         "2026-07-25T17:00:00+09:00",
@@ -187,9 +185,7 @@ def test_future_jst_publish_at_remains_scheduled_against_utc_now() -> None:
 
     connection = connect(":memory:")
     provider = DueAtRecordingProvider()
-    post_id = _seed_media_ready_post(
-        connection, source_key="future-jst", twitter_text="x本文"
-    )
+    post_id = _seed_media_ready_post(connection, source_key="future-jst", twitter_text="x本文")
     publish_at = "2026-08-31T01:05:00+09:00"
     assign_publish_at(connection, post_id=post_id, publish_at=publish_at)
     batch = DailyBatch(

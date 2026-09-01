@@ -12,7 +12,7 @@
 - [x] exact version固定の開発依存関係を導入する
 - [x] Buffer GraphQLクライアントと設定テストを追加する
 - [x] pytest・ruff・mypyを実行する
-- [ ] Gitフックへpre-commitをインストールする（Git hooks書き込み権限待ち）
+- [x] Gitフックへpre-commitをインストールする（2026-09-01 実施。`.git/hooks` は書き込み可能で「権限待ち」は既に解消していた。導入前に `ruff format` 未適用だった3ファイルを整形）
 
 ## MVP実装
 - [x] SQLite投稿管理とSNS別ステータスを実装する
@@ -24,7 +24,7 @@
 
 ## 認証・本文ルール
 - [x] Buffer APIキー設定用の`.env`を作成しGit除外を確認する
-- [ ] 実APIキーを設定してBuffer認証を検証する（ユーザー入力待ち）
+- [x] 実APIキーを設定してBuffer認証を検証する（2026-09-01 `auth-check` で確認。organization=My Organization、接続チャンネルは instagram: new_ai_tees と pinterest: newaitees。Xチャンネルは未接続）
 - [x] Instagram・Xの本文ルールと投稿前検証を実装する
 
 ## フォルダ入力・日次バッチ

@@ -24,7 +24,7 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-exclude = ["NewAITees"]
+exclude = ["NewAITees", ".pytest_cache", "tests/.pytest_tmp"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

@@ -42,8 +42,7 @@ def _valid_payload() -> dict[str, object]:
         "instagram_text": (
             "日本語:\n光が折り重なる抽象作品です。\n\n"
             "English:\nLayers of light form an abstract landscape. "
-            "https://x.com/New_AI_Tees\n\n"
-            + " ".join(HASHTAGS)
+            "https://x.com/New_AI_Tees\n\n" + " ".join(HASHTAGS)
         ),
         "twitter_text": "生成は維持しますが、X投稿は現在凍結中です。",
     }
@@ -96,9 +95,7 @@ def _nineteen_hashtags(payload: dict[str, object], root: Path) -> None:
 
 
 def _uppercase_hashtag(payload: dict[str, object], root: Path) -> None:
-    payload["instagram_text"] = str(payload["instagram_text"]).replace(
-        "#aiartwork", "#AIartwork"
-    )
+    payload["instagram_text"] = str(payload["instagram_text"]).replace("#aiartwork", "#AIartwork")
 
 
 def _duplicate_hashtag(payload: dict[str, object], root: Path) -> None:
@@ -159,9 +156,7 @@ def test_manifest_violation_returns_nonzero(
     assert message in output
 
 
-def test_invalid_json_returns_nonzero(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_invalid_json_returns_nonzero(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     manifest = tmp_path / "broken.png.json"
     manifest.write_text("{", encoding="utf-8")
 
