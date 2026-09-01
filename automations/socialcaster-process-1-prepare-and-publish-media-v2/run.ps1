@@ -1,8 +1,10 @@
 ﻿$ErrorActionPreference = "Stop"
 
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-[Console]::InputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
+# BOM無しのUTF8を使う。[System.Text.Encoding]::UTF8 はプリアンブルを持つため、
+# claudeへのパイプ先頭にBOMが混入する。
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+[Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
+$OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $env:PYTHONIOENCODING = "utf-8"
 
 $root = "C:\projects\SocialCaster"

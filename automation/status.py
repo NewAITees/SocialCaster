@@ -1,8 +1,9 @@
 """SocialCaster 自動実行ラッパー用のDBカウント出力。
 
 秘密情報は一切扱わず、posts テーブルの状態カウントだけを1行で出力する。
-`run-socialcaster.ps1` が publish-media / publish-social の前後で呼び出し、
-差分から「プロセス1成功」の判定とレポートを組み立てるために使う。
+`automations/socialcaster-process-1-prepare-and-publish-media-v2/run.ps1` が
+在庫トップアップのループで反復ごとに呼び出し、STOCK と REFILL から
+今回処理すべき件数を決めるために使う。
 
 出力例:
     MEDIA_SUCCESS=12 MEDIA_FAILED=0 IG_SUCCESS=6 IG_FAILED=0 X_SUCCESS=6 X_FAILED=0 STOCK=7

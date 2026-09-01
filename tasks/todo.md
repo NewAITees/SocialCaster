@@ -111,8 +111,8 @@
 
 ## 2026-07-28 承認なし自動スケジュール（プロセス1→2チェーン）
 - [x] `automation/status.py` … DBカウント出力（gate判定・レポート用、秘密情報なし）
-- [x] `automation/process1-analyze-prompt.txt` … ヘッドレスclaude用の分析&JSON生成専用プロンプト
-- [x] `automation/run-socialcaster.ps1` … ラッパー（claude分析→publish-media→成功ゲート→publish-social→ログ）
+- [x] `automation/process1-analyze-prompt.txt` … ヘッドレスclaude用の分析&JSON生成専用プロンプト（2026-09-01 削除。後述の run.ps1 へ統合済み）
+- [x] `automation/run-socialcaster.ps1` … ラッパー（claude分析→publish-media→成功ゲート→publish-social→ログ）（2026-09-01 削除。実際に稼働しているのは `automations/socialcaster-process-1-prepare-and-publish-media-v2/run.ps1`）
 - [x] エンコーディング(UTF-8 BOM/$OutputEncoding)とグローバルCLAUDE.md非ロード(--setting-sources project)を解決
 - [x] ドライランで3枚分析→JSON生成→仕様検証（カテゴリ/文字数/タグ）まで確認
 - [x] `schtasks` 登録（`\SocialCaster-Process1-PublishMedia`、毎日07:00）
