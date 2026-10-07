@@ -205,9 +205,24 @@
 - [ ] 回復後に `run.ps1` を通しで実走させ、publish-social まで到達することを確認する
 
 ## 2026-10-07 Pinterest投稿の追加（依頼済み・未着手）
-- [ ] Buffer の Pinterest チャンネル設定と `auth-check` の出力を確認する
-- [ ] Pinterest の本文ルール（文字数・ハッシュタグ・リンク可否）を確定する
-- [ ] manifest に Pinterest 用本文を持たせるか、既存本文を流用するかを決める
-- [ ] `provider.py` / `batch.py` / `config.py` へ Pinterest を配線する
-- [ ] `verify_manifests.py` の検証を Pinterest 仕様へ追随させる
-- [ ] テストを追加し pytest・ruff・mypy を通す
+- [x] Buffer の Pinterest チャンネルID・ボードID・GraphQL metadata契約をユーザー確定値として確認する
+- [x] Pinterest の本文・タイトル・リンク制約をユーザー確定値として確認する
+- [x] manifest に Pinterest 専用の本文とタイトルを任意項目として持たせる方針を確認する
+- [x] `provider.py` / `batch.py` / `config.py` へ Pinterest を配線する
+- [x] `database.py` にPinterest状態・本文・タイトル・カテゴリを追加し、サービス別在庫を実装する
+- [x] `verify_manifests.py` の検証を Pinterest 仕様へ追随させる
+- [x] `automation/status.py` と `run.ps1` をサービス別在庫へ追随させる
+- [x] `prompt.md` と環境変数サンプルへPinterest設定を追加する
+- [x] TDDで指定テストを追加し、現存するmanifest 494件を検証する
+- [x] pytest・ruff check・ruff format --check・mypyを通す
+- [x] 差分を自己レビューし、BOM・禁止事項・ユーザー既存変更の保全を確認する
+
+## 2026-10-07 Pinterest 残作業
+- [ ] `.env` の `ENABLE_PINTEREST=true` にするか判断する（ボード5件とIDは設定済み）
+- [ ] 有効化後、実 API への1件目の投稿が Pinterest の意図したボードへ入るか確認する
+- [ ] 既存494件の manifest には Pinterest 欄がないため、当面 Pinterest へは出ない。遡って付与するか、新規分だけで運用するか決める
+- [ ] `joke` / `botanical` は件数が増えたら専用ボードへ分離する（`.env` に1行足すだけ）
+
+## 2026-10-07 判明した構造的な課題（未着手）
+- [ ] `publish-social` の成功判定が「Buffer が予約を受理したか」までしか見ておらず、Buffer から先の実配信失敗を検知できない。Buffer 側の配信ステータスを取得して突き合わせる仕組みを検討する
+- [ ] `media_status=FAILED` 8件は日次実行のリトライ枠で1日1件ずつ解消される見込み（放置可）
