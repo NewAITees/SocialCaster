@@ -24,7 +24,7 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-exclude = ["NewAITees", ".pytest_cache", "tests/.pytest_tmp"]
+exclude = ["NewAITees", ".pytest_cache", "tests/.pytest_tmp", "input", "_*.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
@@ -33,4 +33,4 @@ select = ["E", "F", "I", "B", "UP"]
 python_version = "3.12"
 strict = true
 mypy_path = "src"
-exclude = "(^|/)NewAITees/"
+exclude = '(^|/)(NewAITees|input)/|(^|/)_[^/]*\.py$'
