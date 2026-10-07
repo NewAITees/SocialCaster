@@ -54,6 +54,10 @@ class FolderLayout:
         self.archive.mkdir(parents=True, exist_ok=True)
 
 
+# 1回の実行でリトライに使える枠。残りは必ず新規の manifest へ回す。
+MEDIA_RETRY_SLOTS = 1
+
+
 class DailyBatch:
     MEDIA_PER_RUN = 3
     SOCIAL_POSTS_PER_RUN = 3
@@ -88,8 +92,31 @@ class DailyBatch:
             self._layout.inbox.glob("*.json"),
             key=lambda path: (self._publish_at(path), path.name),
         )
-        for manifest_path in manifests[:count]:
+        for manifest_path in self._select_media_manifests(manifests, count):
             self._publish_media_manifest(manifest_path)
+
+    def _select_media_manifests(self, manifests: list[Path], count: int) -> list[Path]:
+        # 失敗した manifest は inbox に残り辞書順の先頭を占めるため、無条件に先頭から
+        # 取ると同じ失敗を毎回リトライして新規の画像へ永久に到達できない。
+        # そこで1回の実行の予算を「リトライ枠」と「新規枠」に分ける。
+        retry: list[Path] = []
+        fresh: list[Path] = []
+        for manifest_path in manifests:
+            post = get_post_by_source_key(self._connection, self._source_key(manifest_path))
+            if post is None:
+                fresh.append(manifest_path)
+            elif post.media_status == "FAILED":
+                retry.append(manifest_path)
+            elif post.media_status != "SUCCESS":
+                fresh.append(manifest_path)
+        # 枠が1件しかないときはリトライで潰さず、新規を必ず進める。
+        # 使わなかったリトライ枠は新規へ回し、全体では count 件を超えない。
+        retry_take = min(MEDIA_RETRY_SLOTS, len(retry), max(0, count - 1))
+        selected = retry[:retry_take]
+        return selected + fresh[: count - len(selected)]
+
+    def _source_key(self, manifest_path: Path) -> str:
+        return manifest_path.relative_to(self._layout.root).as_posix()
 
     def publish_social_once(self, count: int = SOCIAL_POSTS_PER_RUN) -> None:
         if self._provider is None:
@@ -134,7 +161,7 @@ class DailyBatch:
             image_path = manifest_path.parent / image_name
             instagram_text = _required_string(payload, "instagram_text")
             twitter_text = _required_string(payload, "twitter_text")
-            source_key = manifest_path.relative_to(self._layout.root).as_posix()
+            source_key = self._source_key(manifest_path)
             post = get_post_by_source_key(self._connection, source_key)
             if post is None:
                 post_id = add_pending_post(

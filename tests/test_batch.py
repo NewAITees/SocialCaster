@@ -317,3 +317,106 @@ def test_social_phase_uses_published_media_url() -> None:
         assert post.archive_image_path == str(root / "archive/a.png")
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+class SelectiveFailingPublisher:
+    """指定した画像名のときだけ公開に失敗する公開役。"""
+
+    def __init__(self, failing: set[str]) -> None:
+        self._failing = failing
+        self.published: list[str] = []
+
+    def publish(self, image_path: Path, category: str) -> str:
+        self.published.append(image_path.name)
+        if image_path.name in self._failing:
+            raise RuntimeError(f"公開に失敗しました: {image_path.name}")
+        return f"https://newaitees.github.io/NewAITees/assets/gallery-social/{category}/x.jpg"
+
+    def wait_until_available(self, url: str) -> None:
+        return
+
+
+def _write_named_manifest(root: Path, name: str) -> Path:
+    inbox = root / "inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    (inbox / f"{name}.png").write_bytes(b"image")
+    manifest = inbox / f"{name}.png.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "image": f"{name}.png",
+                "category": "horror",
+                "instagram_text": "instagram",
+                "twitter_text": "x",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return manifest
+
+
+def test_media_phase_reaches_new_manifests_despite_leading_failures() -> None:
+    # 失敗した manifest は inbox に残り辞書順の先頭を占めるため、
+    # 予算を分割しないと新規の画像へ永久に到達できない。
+    root = Path("tests/_runtime_batch_headline")
+    try:
+        for name in ("a_fail1", "a_fail2", "a_fail3"):
+            _write_named_manifest(root, name)
+        for name in ("b_new1", "b_new2", "b_new3"):
+            _write_named_manifest(root, name)
+        connection = connect(":memory:")
+        failing = {"a_fail1.png", "a_fail2.png", "a_fail3.png"}
+
+        first = SelectiveFailingPublisher(failing)
+        DailyBatch(connection, None, FolderLayout(root), first).publish_media_once(3)
+        assert first.published == ["a_fail1.png", "a_fail2.png", "a_fail3.png"]
+
+        second = SelectiveFailingPublisher(failing)
+        DailyBatch(connection, None, FolderLayout(root), second).publish_media_once(3)
+
+        # リトライは1件だけに制限し、残りの枠は必ず新規へ回す
+        assert second.published == ["a_fail1.png", "b_new1.png", "b_new2.png"]
+        assert get_post_by_source_key(connection, "inbox/b_new1.png.json") is not None
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_media_phase_prefers_new_manifest_when_only_one_slot() -> None:
+    root = Path("tests/_runtime_batch_single_slot")
+    try:
+        _write_named_manifest(root, "a_fail1")
+        _write_named_manifest(root, "b_new1")
+        connection = connect(":memory:")
+        failing = {"a_fail1.png"}
+
+        DailyBatch(
+            connection, None, FolderLayout(root), SelectiveFailingPublisher(failing)
+        ).publish_media_once(1)
+
+        second = SelectiveFailingPublisher(failing)
+        DailyBatch(connection, None, FolderLayout(root), second).publish_media_once(1)
+
+        # 枠が1件しかないときはリトライで潰さず新規を進める
+        assert second.published == ["b_new1.png"]
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_media_phase_skips_already_published_manifests() -> None:
+    root = Path("tests/_runtime_batch_skip_success")
+    try:
+        _write_named_manifest(root, "a_done")
+        _write_named_manifest(root, "b_new1")
+        connection = connect(":memory:")
+
+        first = SelectiveFailingPublisher(set())
+        DailyBatch(connection, None, FolderLayout(root), first).publish_media_once(1)
+        assert first.published == ["a_done.png"]
+
+        second = SelectiveFailingPublisher(set())
+        DailyBatch(connection, None, FolderLayout(root), second).publish_media_once(1)
+
+        # 成功した manifest は archive へ移動しているので二度処理しない
+        assert second.published == ["b_new1.png"]
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
