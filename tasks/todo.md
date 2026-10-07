@@ -226,3 +226,15 @@
 ## 2026-10-07 判明した構造的な課題（未着手）
 - [ ] `publish-social` の成功判定が「Buffer が予約を受理したか」までしか見ておらず、Buffer から先の実配信失敗を検知できない。Buffer 側の配信ステータスを取得して突き合わせる仕組みを検討する
 - [ ] `media_status=FAILED` 8件は日次実行のリトライ枠で1日1件ずつ解消される見込み（放置可）
+
+## 2026-10-08 リポジトリの整理
+- [x] `input/manifests` を新設し、JSON 308件を inbox から分離（inbox は画像444枚だけに）
+- [x] DB の `source_key` 194件を `inbox/` から `manifests/` へ書き換え（二重投稿防止）
+- [x] `batch.py` / `verify_manifests.py` / `prompt.md` / `.gitignore` を新構成へ追随
+- [x] `run.ps1` に使い捨てファイルの自動削除とログ30日世代管理を組み込み、実地で動作確認
+- [x] `prompt.md` に「inbox へ書き込まない」「一時ファイルを作らない」を明記
+- [x] 復旧済み `memory.md` 全文（116KB）をコミットし、次の事故に備えた
+- [x] pytest 79件・ruff・ruff format・mypy を通した
+- [ ] `memory_pending_*.md` 40件の扱いを決める（memory.md へマージするか、復旧用の証跡として残すか）
+- [ ] `input/archive` 1.1G は NewAITees と GitHub に同じ画像があるため削除可能。手元バックアップを残すかは要判断
+- [ ] `NewAITees/_site` 576M がビルド出力のままコミットされている件の調査（今回は中断）
