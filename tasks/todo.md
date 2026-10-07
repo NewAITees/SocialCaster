@@ -180,3 +180,34 @@
 - [x] scripts/_verify_* の使い捨て18件を削除した
 - [x] 正常系と各指定違反ケースの回帰テスト14件を追加した
 - [x] pytest・プロジェクト全体ruff・mypy・PowerShell構文を検証した
+
+## 2026-10-07 自動実行の停止解消と失敗通知
+- [x] 自動起動の有無と処理の成否を切り分ける（タスクは毎日07:00に起動済み、LastTaskResult=1）
+- [x] 停止原因を特定する（`random_20260220_151145_0039.png.json` の英語本文251文字でmanifest検証がexit=1、10-04〜10-07の4日間停止）
+- [x] 該当JSONの英語本文を250文字以内へ短縮する
+- [x] `verify_manifests.py` で全件パスを確認する
+- [x] `.env` / `.env.example` に `DISCORD_WEBHOOK_URL` を追加する
+- [x] `run.ps1` に失敗時のみ送信するDiscord通知を実装する
+- [x] PowerShell構文チェックとPS5.1でのテスト送信を確認する
+- [x] `run.ps1` を手動実行し、validation通過を確認する（iteration 1〜4が検証を通過。ただし投稿は0件で、より深い原因が露出した）
+
+### 2026-10-07 判明した多重の詰まり
+- [x] `NewAITees/node_modules` が空で `sharp` が無く画像変換が全件失敗していた → `sfw npm ci --omit=dev` で導入
+- [x] NewAITees の push が bot の自動コミットと競合して弾かれていた → 失敗時に `pull --rebase --autostash` して再pushするよう修正
+- [x] gitの `core.longpaths` 未設定で rebase/autostash が `Filename too long` で落ちる → `_run_git` に付与
+- [x] Pages反映待ちが300秒では足りない（実測約9分）→ 既定を900秒へ
+- [x] 失敗した入力が辞書順先頭を占めて新規を止める → 予算をリトライ枠1件と新規枠へ分割
+- [x] Discord通知を「静かな無成果」（exit 0でもMEDIA_FAILED残存・STOCK未達）も検知するよう拡張
+- [x] 未追跡の使い捨てファイル172件を削除し、ruff/mypyの除外設定を追加（pre-commitが全体で通るようになった）
+- [x] pytest 59件・ruff・ruff format・mypy をプロジェクト全体で通した
+- [x] 変更を6コミットに分けてコミットした
+- [ ] FAILED 9件を回復させる（修正後の `publish-media` で1実行1件のため、回復方法を決める）
+- [ ] 回復後に `run.ps1` を通しで実走させ、publish-social まで到達することを確認する
+
+## 2026-10-07 Pinterest投稿の追加（依頼済み・未着手）
+- [ ] Buffer の Pinterest チャンネル設定と `auth-check` の出力を確認する
+- [ ] Pinterest の本文ルール（文字数・ハッシュタグ・リンク可否）を確定する
+- [ ] manifest に Pinterest 用本文を持たせるか、既存本文を流用するかを決める
+- [ ] `provider.py` / `batch.py` / `config.py` へ Pinterest を配線する
+- [ ] `verify_manifests.py` の検証を Pinterest 仕様へ追随させる
+- [ ] テストを追加し pytest・ruff・mypy を通す

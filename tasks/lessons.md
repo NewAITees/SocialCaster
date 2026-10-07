@@ -5,8 +5,8 @@
 |--------------|-------------------------------|--------|------|
 | meta         | AIとの協働ルール              | -      | 3    |
 | boundary     | データ型・変換・境界契約      | -      | 2    |
-| architecture | 設計・責務・config            | -      | 6    |
-| quality      | テスト・CI/CD・品質保証       | -      | 4    |
+| architecture | 設計・責務・config            | -      | 8    |
+| quality      | テスト・CI/CD・品質保証       | -      | 7    |
 | ui           | フロントエンド・デザイン・VRM | -      | 0    |
 
 ---
@@ -78,6 +78,16 @@
 - **原因**: 現在の予約在庫を基準にせず、実行ごとの固定件数だけを処理していた。
 - **対策**: Instagram予約成功かつ未来時刻の件数を在庫とし、目標との差分をBuffer予約上限でクランプして反復補充する。
 
+### [NewAITees: botの自動コミットとpushが競合し1枚しか公開できない]
+- **症状**: `publish-media` が1枚目は成功するのに2枚目以降が必ず `! [rejected] main -> main (fetch first)` で失敗する。MEDIA_FAILEDが溜まり投稿が止まる。
+- **原因**: NewAITees には push を契機に走る GitHub Actions があり、bot が `Auto-update gallery data` を push する。`newaitees.py` は commit → push だけで pull しないため、1枚公開した直後にリモートが先に進み、次の push が弾かれる。つまり1回の pull に対して公開できる画像は最大1枚だった。
+- **対策**: push が弾まれたときだけ `pull --rebase --autostash` して1回だけ再 push する（`_push_with_rebase`）。毎回 pull する案はネットワーク往復が増え、かつ pull と push の隙に bot が入る競合が残るため採らなかった。リモートが自動更新されるリポジトリへ push する処理は、競合を前提に再試行経路を持たせること。
+
+### [入力処理: 失敗した入力が辞書順の先頭を占めて新規を永久に止める]
+- **症状**: 自動実行が毎日完走し exit 0 を返すのに、新しい画像が1枚も投稿されない。iterationを何回まわしても同じ9件を処理して終わる。
+- **原因**: `publish_media_once` は inbox の全manifestを辞書順に並べて先頭 `count` 件を無条件に処理する。失敗したmanifestはinboxに残るため辞書順の先頭を占め続け、`count` 件すべてを食い潰して新規へ到達しない（head-of-line blocking）。
+- **対策**: 1回の実行の予算をリトライ枠1件と新規枠に分ける（`MEDIA_RETRY_SLOTS`）。使わなかったリトライ枠は新規へ回し、枠が1件のときはリトライで潰さず新規を優先する。リトライ対象を無制限に先頭から取る設計は、1件直らないだけで全体が停止する。
+
 ## quality — テスト・CI/CD・品質保証
 ### [サブカテゴリ: タイトル]
 
@@ -105,6 +115,21 @@
 - **症状**: 対象画像をベタ書きした日付別スクリプトでは仕様変更を追従できず、違反を表示しても自動処理を停止できない。
 - **原因**: 検証対象・期待値・実行日が一体化し、assertや非0終了を持たない使い捨て実装を複製していた。
 - **対策**: inboxの全JSONを現行仕様で走査する単一スクリプトへ統合し、違反時の非0終了をpublish-media前のゲートにする。
+
+### [manifest検証ゲート: 1件の不正JSONが自動実行を無期限に止める]
+- **症状**: 2026-10-04の生成で作られた `random_20260220_151145_0039.png.json` の英語本文が251文字（上限250）となり、以後 10-04〜10-07 の毎日07:00の自動実行がすべて validation で停止。4日間、publish-media / publish-social が1件も走らなかった。
+- **原因**: `verify_manifests.py` は inbox 内の全JSONを走査するため、過去分の1件が不正でもゲート全体が exit=1 になる。新規生成分が正しくても前へ進めない。さらにclaudeの生成は文字数を自己申告で「250字以内を確認済み」と報告するため、生成時点では誤りが検出されない。
+- **対策**: 失敗時にDiscordへ通知する（`run.ps1` の `Send-DiscordNotification`）。通知が来ない＝正常という判別にする。また「自動実行が止まった」の調査は、タスクスケジューラの起動有無（`Get-ScheduledTaskInfo` の LastTaskResult）と処理の成否を分けて見ること。本件は起動は毎日成功しており、止まっていたのは処理だった。
+
+### [失敗通知: 無人自動実行は失敗を外部へ知らせる経路を必ず持たせる]
+- **症状**: 自動実行が4日連続で失敗していたが、ログと memory.md にしか記録されず誰も気づかなかった。利用者は「最近自動起動していない」としか観測できなかった。
+- **原因**: 無人実行の失敗が、人間が能動的にログを見に行かない限り可視化されない設計だった。
+- **対策**: `run.ps1` の `finally` で `$automationExit -ne 0` のときのみDiscord webhookへ通知する。webhook URLは `.env`（git管理外）に置き、未設定なら黙ってスキップする。通知処理は try/catch で包み、通知の失敗が本処理の結果を壊さないようにする。Windows PowerShell 5.1 で動くため TLS1.2 を明示し、本文は UTF-8 バイト列で送る（Discordのメッセージ上限2000文字で切り詰める）。
+
+### [Windows: 長いパスのファイルがあるとgitのrebase/autostashが落ちる]
+- **症状**: `git pull --rebase --autostash` が `Filename too long` → `Cannot save the current worktree state` → `fatal: Cannot autostash` で失敗し、1件もrebaseできない。
+- **原因**: NewAITees の `_site/assets/gallery/monochrome/` に260文字を超えるパスのファイルがあり、`core.longpaths` 未設定のgitが lstat できない。作業ツリーが汚れていると autostash がそのファイルに触って落ちる。
+- **対策**: コードからgitを呼ぶときは `-c core.longpaths=true` を付ける（`newaitees.py` の `_run_git`）。設定を永続化せずコマンド単位で指定すれば、利用者のgit設定に依存しない。
 
 ## ui — フロントエンド・デザイン・VRM
 ### [サブカテゴリ: タイトル]
