@@ -57,7 +57,8 @@ class NewAITeesPublisher:
         )
         if commit.returncode not in (0, 1):
             raise NewAITeesError(commit.stderr.strip() or "NewAITeesのcommitに失敗しました")
-        self._push_with_rebase()
+        # pushはflushでまとめて行う。Pagesはpushのたびにサイト全体を再ビルドするため、
+        # 1枚ごとにpushするとビルド待ちが枚数ぶん積み上がる。
         return (
             f"{self._pages_base_url}/assets/gallery-social/{quote(category)}/{quote(social_name)}"
         )
@@ -115,6 +116,10 @@ class NewAITeesPublisher:
                 pass
             sleep(interval_seconds)
         raise NewAITeesError(f"GitHub Pagesへの画像反映がタイムアウトしました: {url}")
+
+    def flush(self) -> None:
+        """commit済みの変更をまとめて1回だけpushする。"""
+        self._push_with_rebase()
 
     def _push_with_rebase(self) -> None:
         # NewAITeesはGitHub Actionsが gallery-data を自動コミットして push するため、

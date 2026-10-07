@@ -26,6 +26,7 @@ def test_publish_returns_social_variant_url() -> None:
         publisher = NewAITeesPublisher(repository, runner=runner)
 
         url = publisher.publish(image, "horror")
+        publisher.flush()
 
         # X の 5MB 制限に収まる中間JPEGのURLを返す（IG/X共通で使う）
         assert url.endswith("/assets/gallery-social/horror/image.jpg")
@@ -103,6 +104,7 @@ def test_publish_rebases_and_retries_when_push_is_rejected() -> None:
         publisher = NewAITeesPublisher(repository, runner=runner)
 
         publisher.publish(image, "horror")
+        publisher.flush()
 
         git_arguments = [command[5:] for command in calls if command[0] == "git"]
         # 弾かれたあとに rebase で取り込み、同じブランチへ再pushする
@@ -132,8 +134,9 @@ def test_publish_raises_when_push_fails_even_after_rebase() -> None:
         image.write_bytes(b"png")
         publisher = NewAITeesPublisher(repository, runner=runner)
 
+        publisher.publish(image, "horror")
         with pytest.raises(NewAITeesError):
-            publisher.publish(image, "horror")
+            publisher.flush()
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -146,3 +149,53 @@ def test_pages_wait_default_timeout_covers_observed_build_time() -> None:
         .default
     )
     assert default == 900
+
+
+def test_publish_commits_without_pushing() -> None:
+    # Pagesはpushのたびにサイト全体を再ビルドするため、1枚ごとにpushすると
+    # ビルド待ちが枚数ぶん積み上がる。pushはflushへ分離する。
+    root = Path("tests/_runtime_newaitees_stage")
+    image = root / "image.png"
+    repository = root / "NewAITees"
+    calls: list[list[str]] = []
+
+    def runner(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    try:
+        repository.mkdir(parents=True)
+        image.write_bytes(b"png")
+        publisher = NewAITeesPublisher(repository, runner=runner)
+
+        url = publisher.publish(image, "horror")
+
+        assert url.endswith("/assets/gallery-social/horror/image.jpg")
+        assert not any("push" in command for command in calls)
+        assert any(command[5:6] == ["commit"] for command in calls if command[0] == "git")
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_flush_pushes_once_for_the_whole_batch() -> None:
+    root = Path("tests/_runtime_newaitees_flush")
+    repository = root / "NewAITees"
+    calls: list[list[str]] = []
+
+    def runner(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    try:
+        repository.mkdir(parents=True)
+        publisher = NewAITeesPublisher(repository, runner=runner)
+
+        for _ in range(3):
+            (root / "a.png").write_bytes(b"png")
+            publisher.publish(root / "a.png", "horror")
+        publisher.flush()
+
+        pushes = [command for command in calls if "push" in command]
+        assert len(pushes) == 1
+    finally:
+        shutil.rmtree(root, ignore_errors=True)

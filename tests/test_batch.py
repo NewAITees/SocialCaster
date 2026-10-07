@@ -24,6 +24,9 @@ class FakeMediaPublisher:
         self.published.append((image_path, category))
         return "https://newaitees.github.io/NewAITees/assets/gallery/horror/a.png"
 
+    def flush(self) -> None:
+        return
+
     def wait_until_available(self, url: str) -> None:
         return
 
@@ -474,6 +477,9 @@ class SelectiveFailingPublisher:
             raise RuntimeError(f"公開に失敗しました: {image_path.name}")
         return f"https://newaitees.github.io/NewAITees/assets/gallery-social/{category}/x.jpg"
 
+    def flush(self) -> None:
+        return
+
     def wait_until_available(self, url: str) -> None:
         return
 
@@ -598,5 +604,73 @@ def test_layout_ensure_creates_the_manifests_folder() -> None:
         assert layout.inbox.is_dir()
         assert layout.manifests.is_dir()
         assert layout.archive.is_dir()
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+class RecordingBatchPublisher:
+    """stage(publish) と flush と待機の呼び出し順を記録する公開役。"""
+
+    def __init__(self, flush_error: str | None = None) -> None:
+        self.events: list[str] = []
+        self._flush_error = flush_error
+
+    def publish(self, image_path: Path, category: str) -> str:
+        self.events.append(f"publish:{image_path.name}")
+        return f"https://example.invalid/{image_path.stem}.jpg"
+
+    def flush(self) -> None:
+        self.events.append("flush")
+        if self._flush_error is not None:
+            raise RuntimeError(self._flush_error)
+
+    def wait_until_available(self, url: str) -> None:
+        self.events.append(f"wait:{url.rsplit('/', 1)[-1]}")
+
+
+def test_media_phase_pushes_once_after_staging_every_image() -> None:
+    root = Path("tests/_runtime_batch_flush")
+    try:
+        for name in ("a_one", "b_two", "c_three"):
+            _write_named_manifest(root, name)
+        connection = connect(":memory:")
+        publisher = RecordingBatchPublisher()
+
+        DailyBatch(connection, None, FolderLayout(root), publisher).publish_media_once(3)
+
+        # 3枚ぶんのcommitを済ませてから1回だけpushし、そのあとで反映を待つ
+        assert publisher.events == [
+            "publish:a_one.png",
+            "publish:b_two.png",
+            "publish:c_three.png",
+            "flush",
+            "wait:a_one.jpg",
+            "wait:b_two.jpg",
+            "wait:c_three.jpg",
+        ]
+        assert publisher.events.count("flush") == 1
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_media_phase_fails_the_whole_batch_when_the_push_fails() -> None:
+    root = Path("tests/_runtime_batch_flush_fail")
+    try:
+        for name in ("a_one", "b_two"):
+            _write_named_manifest(root, name)
+        connection = connect(":memory:")
+
+        DailyBatch(
+            connection, None, FolderLayout(root), RecordingBatchPublisher(flush_error="push拒否")
+        ).publish_media_once(2)
+
+        # pushが通らなければ公開URLは成立しないので、commit済みの全件を失敗にする
+        for name in ("a_one", "b_two"):
+            post = get_post_by_source_key(connection, f"manifests/{name}.png.json")
+            assert post is not None
+            assert post.media_status == "FAILED"
+        # 画像とmanifestはarchiveへ動かさず、次回リトライできる状態で残す
+        assert (root / "inbox/a_one.png").exists()
+        assert (root / "manifests/a_one.png.json").exists()
     finally:
         shutil.rmtree(root, ignore_errors=True)

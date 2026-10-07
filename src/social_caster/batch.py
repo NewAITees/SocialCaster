@@ -34,6 +34,9 @@ class MediaPublisher(Protocol):
     def publish(self, image_path: Path, category: str) -> str:
         """Publish a local image and return its public URL."""
 
+    def flush(self) -> None:
+        """Push everything staged so far in a single deployment."""
+
     def wait_until_available(self, url: str) -> None:
         """Wait until the public URL is served by the Pages deployment."""
 
@@ -103,8 +106,38 @@ class DailyBatch:
             self._layout.manifests.glob("*.json"),
             key=lambda path: (self._publish_at(path), path.name),
         )
-        for manifest_path in self._select_media_manifests(manifests, count):
-            self._publish_media_manifest(manifest_path)
+        selected = self._select_media_manifests(manifests, count)
+        staged: list[tuple[Path, Post, Path, str]] = []
+        for manifest_path in selected:
+            entry = self._stage_media_manifest(manifest_path)
+            if entry is not None:
+                staged.append(entry)
+        if not staged:
+            return
+
+        media_publisher = self._media_publisher
+        if media_publisher is None:
+            raise RuntimeError("画像公開処理が設定されていません")
+        try:
+            media_publisher.flush()
+        except Exception as exc:  # noqa: BLE001 - pushが通らなければ全件の公開URLが成立しない
+            for _, post, _, _ in staged:
+                mark_media_failed(self._connection, post_id=post.id, error=str(exc))
+            return
+
+        for manifest_path, post, image_path, image_url in staged:
+            try:
+                media_publisher.wait_until_available(image_url)
+            except Exception as exc:  # noqa: BLE001 - 1枚ずつ切り分けて次へ進む
+                mark_media_failed(self._connection, post_id=post.id, error=str(exc))
+                continue
+            archive_image_path = self._archive_inputs(manifest_path, image_path)
+            mark_media_success(
+                self._connection,
+                post_id=post.id,
+                archive_image_path=str(archive_image_path),
+                image_url=image_url,
+            )
 
     def _select_media_manifests(self, manifests: list[Path], count: int) -> list[Path]:
         # 失敗した manifest は manifests に残り辞書順の先頭を占めるため、無条件に先頭から
@@ -171,7 +204,8 @@ class DailyBatch:
             self._try_post(post, "twitter", post.twitter_status, tweet_text, due_at)
             seen_twitter_texts.append(post.twitter_text)
 
-    def _publish_media_manifest(self, manifest_path: Path) -> None:
+    def _stage_media_manifest(self, manifest_path: Path) -> tuple[Path, Post, Path, str] | None:
+        """画像の変換とcommitまでを行い、pushと反映待ちは呼び出し側へ委ねる。"""
         post: Post | None = None
         media_publisher = self._media_publisher
         try:
@@ -203,20 +237,13 @@ class DailyBatch:
                 if post is None or post.id != post_id:
                     raise RuntimeError("画像公開用の投稿レコードを取得できませんでした")
             if post.media_status == "SUCCESS":
-                return
+                return None
             image_url = media_publisher.publish(image_path, category)
-            media_publisher.wait_until_available(image_url)
         except Exception as exc:  # noqa: BLE001 - continue with the next input
             if post is not None:
                 mark_media_failed(self._connection, post_id=post.id, error=str(exc))
-            return
-        archive_image_path = self._archive_inputs(manifest_path, image_path)
-        mark_media_success(
-            self._connection,
-            post_id=post.id,
-            archive_image_path=str(archive_image_path),
-            image_url=image_url,
-        )
+            return None
+        return manifest_path, post, image_path, image_url
 
     def _archive_inputs(self, manifest_path: Path, image_path: Path) -> Path:
         self._layout.archive.mkdir(parents=True, exist_ok=True)
