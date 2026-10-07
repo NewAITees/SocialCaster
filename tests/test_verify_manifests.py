@@ -62,6 +62,33 @@ def test_valid_manifest_passes(tmp_path: Path, capsys: pytest.CaptureFixture[str
     assert capsys.readouterr().out == "All manifests are valid.\n"
 
 
+def test_valid_pinterest_fields_pass(tmp_path: Path) -> None:
+    payload = _valid_payload()
+    payload.update(pinterest_text="ピンの説明", pinterest_title="作品タイトル")
+    manifest = _write_manifest(tmp_path, payload)
+
+    assert validate_manifest(manifest) == []
+
+
+@pytest.mark.parametrize(
+    ("fields", "message"),
+    [
+        ({"pinterest_text": "あ" * 501, "pinterest_title": "題名"}, "500文字"),
+        ({"pinterest_text": "説明", "pinterest_title": "あ" * 101}, "100文字"),
+        ({"pinterest_text": "説明"}, "両方"),
+        ({"pinterest_title": "題名"}, "両方"),
+    ],
+)
+def test_invalid_pinterest_fields_fail(
+    tmp_path: Path, fields: dict[str, str], message: str
+) -> None:
+    payload = _valid_payload()
+    payload.update(fields)
+    manifest = _write_manifest(tmp_path, payload)
+
+    assert any(message in error for error in validate_manifest(manifest))
+
+
 Mutation = Callable[[dict[str, object], Path], None]
 
 

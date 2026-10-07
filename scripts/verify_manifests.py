@@ -77,6 +77,21 @@ def validate_manifest(manifest_path: Path) -> list[str]:
     # ENABLE_TWITTER=falseでX投稿を凍結中のため、文字数・タグ・リンクは検証しない。
     # 凍結解除時には、運用仕様を確定してここへ検証を復活させる。
 
+    pinterest_text = payload.get("pinterest_text")
+    pinterest_title = payload.get("pinterest_title")
+    if (pinterest_text is None) != (pinterest_title is None):
+        errors.append("pinterest_textとpinterest_titleは両方指定するか両方省略してください")
+    if pinterest_text is not None:
+        if not isinstance(pinterest_text, str) or not pinterest_text.strip():
+            errors.append("pinterest_textは空でない文字列である必要があります")
+        elif len(pinterest_text) > 500:
+            errors.append("pinterest_textが500文字を超えています")
+    if pinterest_title is not None:
+        if not isinstance(pinterest_title, str) or not pinterest_title.strip():
+            errors.append("pinterest_titleは空でない文字列である必要があります")
+        elif len(pinterest_title) > 100:
+            errors.append("pinterest_titleが100文字を超えています")
+
     return errors
 
 

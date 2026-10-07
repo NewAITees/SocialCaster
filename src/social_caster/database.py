@@ -17,11 +17,16 @@ CREATE TABLE IF NOT EXISTS posts (
     media_error TEXT,
     instagram_text TEXT NOT NULL,
     twitter_text TEXT NOT NULL,
+    pinterest_text TEXT,
+    pinterest_title TEXT,
+    category TEXT NOT NULL DEFAULT 'other',
     publish_at TEXT NOT NULL DEFAULT '',
     instagram_status TEXT NOT NULL DEFAULT 'WAIT',
     twitter_status TEXT NOT NULL DEFAULT 'WAIT',
+    pinterest_status TEXT NOT NULL DEFAULT 'WAIT',
     instagram_buffer_id TEXT,
     twitter_buffer_id TEXT,
+    pinterest_buffer_id TEXT,
     last_error TEXT,
     source_key TEXT UNIQUE,
     created_at TEXT NOT NULL,
@@ -39,9 +44,13 @@ class Post:
     media_status: str
     instagram_text: str
     twitter_text: str
+    pinterest_text: str | None
+    pinterest_title: str | None
+    category: str
     publish_at: str | None
     instagram_status: str
     twitter_status: str
+    pinterest_status: str
 
 
 def connect(path: Path | str) -> sqlite3.Connection:
@@ -63,6 +72,9 @@ def add_post(
     image_url: str,
     instagram_text: str,
     twitter_text: str,
+    pinterest_text: str | None,
+    pinterest_title: str | None,
+    category: str,
     publish_at: str,
 ) -> int:
     validate_platform_texts(instagram_text=instagram_text, twitter_text=twitter_text)
@@ -72,15 +84,19 @@ def add_post(
     cursor = connection.execute(
         """
         INSERT INTO posts (
-            image_path, image_url, media_status, instagram_text, twitter_text, publish_at,
+            image_path, image_url, media_status, instagram_text, twitter_text,
+            pinterest_text, pinterest_title, category, publish_at,
             archive_image_path, source_key, created_at, updated_at
-        ) VALUES (?, ?, 'SUCCESS', ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, 'SUCCESS', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             image_path,
             image_url,
             instagram_text,
             twitter_text,
+            pinterest_text,
+            pinterest_title,
+            category,
             publish_at,
             None,
             source_key,
@@ -101,6 +117,9 @@ def add_pending_post(
     image_path: str,
     instagram_text: str,
     twitter_text: str,
+    pinterest_text: str | None,
+    pinterest_title: str | None,
+    category: str,
     publish_at: str | None = None,
 ) -> int:
     validate_platform_texts(instagram_text=instagram_text, twitter_text=twitter_text)
@@ -108,11 +127,24 @@ def add_pending_post(
     cursor = connection.execute(
         """
         INSERT INTO posts (
-            image_path, image_url, media_status, instagram_text, twitter_text, publish_at,
+            image_path, image_url, media_status, instagram_text, twitter_text,
+            pinterest_text, pinterest_title, category, publish_at,
             archive_image_path, source_key, created_at, updated_at
-        ) VALUES (?, '', 'WAIT', ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, '', 'WAIT', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (image_path, instagram_text, twitter_text, publish_at or "", None, source_key, now, now),
+        (
+            image_path,
+            instagram_text,
+            twitter_text,
+            pinterest_text,
+            pinterest_title,
+            category,
+            publish_at or "",
+            None,
+            source_key,
+            now,
+            now,
+        ),
     )
     connection.commit()
     if cursor.lastrowid is None:
@@ -124,7 +156,8 @@ def get_post_by_source_key(connection: sqlite3.Connection, source_key: str) -> P
     row = connection.execute(
         """
         SELECT id, image_path, archive_image_path, image_url, instagram_text,
-               twitter_text, publish_at, media_status, instagram_status, twitter_status
+               twitter_text, pinterest_text, pinterest_title, category, publish_at,
+               media_status, instagram_status, twitter_status, pinterest_status
         FROM posts WHERE source_key = ?
         """,
         (source_key,),
@@ -137,12 +170,14 @@ def due_posts(connection: sqlite3.Connection, *, now: str | None = None) -> list
     rows = connection.execute(
         """
         SELECT id, image_path, archive_image_path, image_url, instagram_text,
-               twitter_text, publish_at, media_status, instagram_status, twitter_status
+               twitter_text, pinterest_text, pinterest_title, category, publish_at,
+               media_status, instagram_status, twitter_status, pinterest_status
         FROM posts
         WHERE publish_at <= ?
           AND publish_at <> ''
           AND media_status = 'SUCCESS'
-          AND (instagram_status != 'SUCCESS' OR twitter_status != 'SUCCESS')
+          AND (instagram_status != 'SUCCESS'
+               OR (pinterest_text IS NOT NULL AND pinterest_status != 'SUCCESS'))
         ORDER BY publish_at, id
         """,
         (current,),
@@ -154,11 +189,13 @@ def unscheduled_posts(connection: sqlite3.Connection, *, limit: int) -> list[Pos
     rows = connection.execute(
         """
         SELECT id, image_path, archive_image_path, image_url, instagram_text,
-               twitter_text, publish_at, media_status, instagram_status, twitter_status
+               twitter_text, pinterest_text, pinterest_title, category, publish_at,
+               media_status, instagram_status, twitter_status, pinterest_status
         FROM posts
         WHERE media_status = 'SUCCESS'
           AND publish_at = ''
-          AND (instagram_status != 'SUCCESS' OR twitter_status != 'SUCCESS')
+          AND (instagram_status != 'SUCCESS'
+               OR (pinterest_text IS NOT NULL AND pinterest_status != 'SUCCESS'))
         ORDER BY created_at, id
         LIMIT ?
         """,
@@ -171,26 +208,30 @@ def scheduled_posts(connection: sqlite3.Connection) -> list[Post]:
     rows = connection.execute(
         """
         SELECT id, image_path, archive_image_path, image_url, instagram_text,
-               twitter_text, publish_at, media_status, instagram_status, twitter_status
+               twitter_text, pinterest_text, pinterest_title, category, publish_at,
+               media_status, instagram_status, twitter_status, pinterest_status
         FROM posts
         WHERE media_status = 'SUCCESS'
           AND publish_at <> ''
-          AND (instagram_status != 'SUCCESS' OR twitter_status != 'SUCCESS')
+          AND (instagram_status != 'SUCCESS'
+               OR (pinterest_text IS NOT NULL AND pinterest_status != 'SUCCESS'))
         ORDER BY publish_at, id
         """
     ).fetchall()
     return [_post_from_row(row) for row in rows]
 
 
-def stock_count(connection: sqlite3.Connection, *, now: str | None = None) -> int:
-    """Count future Instagram reservations successfully accepted by Buffer."""
+def stock_count(connection: sqlite3.Connection, *, service: str, now: str | None = None) -> int:
+    """Bufferが受理したサービス別の未来予約数を返す。"""
+    if service not in {"instagram", "pinterest"}:
+        raise ValueError(f"未対応のサービスです: {service}")
     current = now or _utc_now()
     row = connection.execute(
-        """
+        f"""
         SELECT COUNT(*)
         FROM posts
         WHERE julianday(publish_at) > julianday(?)
-          AND instagram_status = 'SUCCESS'
+          AND {service}_status = 'SUCCESS'
         """,
         (current,),
     ).fetchone()
@@ -259,7 +300,7 @@ def _update_service(
     buffer_id: str | None,
     error: str | None = None,
 ) -> None:
-    if service not in {"instagram", "twitter"}:
+    if service not in {"instagram", "twitter", "pinterest"}:
         raise ValueError(f"未対応のサービスです: {service}")
     status_column = f"{service}_status"
     id_column = f"{service}_buffer_id"
@@ -281,9 +322,15 @@ def _post_from_row(row: sqlite3.Row) -> Post:
         media_status=str(row["media_status"]),
         instagram_text=str(row["instagram_text"]),
         twitter_text=str(row["twitter_text"]),
+        pinterest_text=str(row["pinterest_text"]) if row["pinterest_text"] is not None else None,
+        pinterest_title=(
+            str(row["pinterest_title"]) if row["pinterest_title"] is not None else None
+        ),
+        category=str(row["category"]),
         publish_at=str(row["publish_at"]) or None,
         instagram_status=str(row["instagram_status"]),
         twitter_status=str(row["twitter_status"]),
+        pinterest_status=str(row["pinterest_status"]),
     )
 
 
@@ -308,6 +355,18 @@ def _migrate(connection: sqlite3.Connection) -> None:
             "UPDATE posts SET archive_image_path = image_path "
             "WHERE image_url <> '' AND (archive_image_path IS NULL OR archive_image_path = '')"
         )
+    if "pinterest_status" not in columns:
+        connection.execute(
+            "ALTER TABLE posts ADD COLUMN pinterest_status TEXT NOT NULL DEFAULT 'WAIT'"
+        )
+    if "pinterest_buffer_id" not in columns:
+        connection.execute("ALTER TABLE posts ADD COLUMN pinterest_buffer_id TEXT")
+    if "pinterest_text" not in columns:
+        connection.execute("ALTER TABLE posts ADD COLUMN pinterest_text TEXT")
+    if "pinterest_title" not in columns:
+        connection.execute("ALTER TABLE posts ADD COLUMN pinterest_title TEXT")
+    if "category" not in columns:
+        connection.execute("ALTER TABLE posts ADD COLUMN category TEXT NOT NULL DEFAULT 'other'")
     connection.commit()
 
 

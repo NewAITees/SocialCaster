@@ -6,7 +6,17 @@ class FakeProvider:
     def __init__(self) -> None:
         self.services: list[str] = []
 
-    def post(self, *, service: str, text: str, image_url: str, due_at: str | None = None) -> str:
+    def post(
+        self,
+        *,
+        service: str,
+        text: str,
+        image_url: str,
+        due_at: str | None = None,
+        category: str | None = None,
+        title: str | None = None,
+        destination_url: str | None = None,
+    ) -> str:
         self.services.append(service)
         if service == "instagram":
             raise RuntimeError("instagram unavailable")
@@ -21,6 +31,9 @@ def test_one_channel_failure_does_not_block_other() -> None:
         image_url="https://example.com/a.jpg",
         instagram_text="instagram",
         twitter_text="x",
+        pinterest_text=None,
+        pinterest_title=None,
+        category="other",
         publish_at="2026-01-01T00:00:00+00:00",
     )
     provider = FakeProvider()

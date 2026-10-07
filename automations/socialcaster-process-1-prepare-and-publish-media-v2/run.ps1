@@ -104,8 +104,9 @@ try {
         $status = Get-Status
         $refill = $status.REFILL
         Add-Content -Path $logFile -Value (
-            "==== iteration {0}: stock={1} target={2} cap={3} refill={4} ====" -f `
-                $iteration, $status.STOCK, $status.TARGET_STOCK, $status.RESERVATION_CAP, $refill
+            "==== iteration {0}: stock_instagram={1} stock_pinterest={2} target={3} cap={4} refill={5} ====" -f `
+                $iteration, $status.STOCK_INSTAGRAM, $status.STOCK_PINTEREST, `
+                $status.TARGET_STOCK, $status.RESERVATION_CAP, $refill
         )
         if ($refill -le 0) {
             $stopReason = "target stock reached"
@@ -206,9 +207,14 @@ finally {
         if ($closingStatus.MEDIA_FAILED -gt 0) {
             $warnings += ("公開に失敗したままの投稿が {0} 件あります (MEDIA_FAILED)" -f $closingStatus.MEDIA_FAILED)
         }
-        if ($closingStatus.STOCK -lt $closingStatus.TARGET_STOCK) {
-            $warnings += ("予約在庫が目標に届いていません: STOCK={0} TARGET={1}" -f `
-                $closingStatus.STOCK, $closingStatus.TARGET_STOCK)
+        if ($closingStatus.STOCK_INSTAGRAM -lt $closingStatus.TARGET_STOCK) {
+            $warnings += ("Instagram予約在庫が目標に届いていません: STOCK_INSTAGRAM={0} TARGET={1}" -f `
+                $closingStatus.STOCK_INSTAGRAM, $closingStatus.TARGET_STOCK)
+        }
+        if ($closingStatus.PINTEREST_ENABLED -eq 1 -and `
+            $closingStatus.STOCK_PINTEREST -lt $closingStatus.TARGET_STOCK) {
+            $warnings += ("Pinterest予約在庫が目標に届いていません: STOCK_PINTEREST={0} TARGET={1}" -f `
+                $closingStatus.STOCK_PINTEREST, $closingStatus.TARGET_STOCK)
         }
     }
     catch {

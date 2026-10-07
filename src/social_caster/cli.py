@@ -54,6 +54,9 @@ def main() -> None:
             BufferClient(settings.buffer_api_key),
             settings.instagram_channel_id,
             settings.x_channel_id,
+            settings.pinterest_channel_id,
+            settings.pinterest_boards,
+            settings.pinterest_board_default,
         )
         if args.command == "publish-social":
             DailyBatch(
@@ -62,6 +65,7 @@ def main() -> None:
                 FolderLayout(Path("input")),
                 None,
                 enable_twitter=settings.enable_twitter,
+                enable_pinterest=settings.enable_pinterest,
             ).publish_social_once(args.count)
             return
         DailyBatch(
@@ -70,6 +74,7 @@ def main() -> None:
             FolderLayout(Path("input")),
             _new_media_publisher(),
             enable_twitter=settings.enable_twitter,
+            enable_pinterest=settings.enable_pinterest,
         ).run_once()
         return
     if args.command == "add-post":
@@ -80,6 +85,9 @@ def main() -> None:
             image_url=args.image_url,
             instagram_text=args.instagram_text,
             twitter_text=args.twitter_text,
+            pinterest_text=None,
+            pinterest_title=None,
+            category="other",
             publish_at=args.publish_at,
         )
         print(post_id)
@@ -90,6 +98,9 @@ def main() -> None:
         BufferClient(settings.buffer_api_key),
         settings.instagram_channel_id,
         settings.x_channel_id,
+        settings.pinterest_channel_id,
+        settings.pinterest_boards,
+        settings.pinterest_board_default,
     )
     scheduler = Scheduler(connection, provider)
     if args.command == "run-once":

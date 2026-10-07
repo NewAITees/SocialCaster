@@ -32,7 +32,17 @@ class FakeSocialProvider:
     def __init__(self) -> None:
         self.services: list[str] = []
 
-    def post(self, *, service: str, text: str, image_url: str, due_at: str | None = None) -> str:
+    def post(
+        self,
+        *,
+        service: str,
+        text: str,
+        image_url: str,
+        due_at: str | None = None,
+        category: str | None = None,
+        title: str | None = None,
+        destination_url: str | None = None,
+    ) -> str:
         self.services.append(service)
         return f"{service}-1"
 
@@ -85,6 +95,31 @@ def test_media_phase_archives_inputs_after_publishing() -> None:
         shutil.rmtree(root, ignore_errors=True)
 
 
+def test_media_phase_stores_optional_pinterest_fields() -> None:
+    root = Path("tests/_runtime_batch_pinterest_manifest")
+    try:
+        manifest = _write_manifest(root)
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+        payload.update(pinterest_text="Pinterest本文", pinterest_title="Pinterest題名")
+        manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        connection = connect(":memory:")
+
+        DailyBatch(
+            connection,
+            None,
+            FolderLayout(root),
+            FakeMediaPublisher(),
+        ).publish_media_once()
+
+        post = get_post_by_source_key(connection, "inbox/a.json")
+        assert post is not None
+        assert post.category == "horror"
+        assert post.pinterest_text == "Pinterest本文"
+        assert post.pinterest_title == "Pinterest題名"
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
 def test_schedule_slots_cover_evening_and_next_day_morning() -> None:
     connection = connect(":memory:")
     now = datetime(2026, 7, 25, 7, 0, tzinfo=UTC)
@@ -132,9 +167,21 @@ def test_schedule_slots_are_deterministic_for_same_seed() -> None:
 class RecordingSocialProvider:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str]] = []
+        self.details: list[tuple[str, str | None, str | None, str | None]] = []
 
-    def post(self, *, service: str, text: str, image_url: str, due_at: str | None = None) -> str:
+    def post(
+        self,
+        *,
+        service: str,
+        text: str,
+        image_url: str,
+        due_at: str | None = None,
+        category: str | None = None,
+        title: str | None = None,
+        destination_url: str | None = None,
+    ) -> str:
         self.calls.append((service, text))
+        self.details.append((service, category, title, destination_url))
         return f"{service}-1"
 
 
@@ -142,13 +189,29 @@ class DueAtRecordingProvider:
     def __init__(self) -> None:
         self.due_at_values: list[str | None] = []
 
-    def post(self, *, service: str, text: str, image_url: str, due_at: str | None = None) -> str:
+    def post(
+        self,
+        *,
+        service: str,
+        text: str,
+        image_url: str,
+        due_at: str | None = None,
+        category: str | None = None,
+        title: str | None = None,
+        destination_url: str | None = None,
+    ) -> str:
         self.due_at_values.append(due_at)
         return f"{service}-1"
 
 
 def _seed_media_ready_post(
-    connection: sqlite3.Connection, *, source_key: str, twitter_text: str
+    connection: sqlite3.Connection,
+    *,
+    source_key: str,
+    twitter_text: str,
+    pinterest_text: str | None = None,
+    pinterest_title: str | None = None,
+    category: str = "other",
 ) -> int:
     from social_caster.database import add_pending_post, mark_media_success
 
@@ -158,6 +221,9 @@ def _seed_media_ready_post(
         image_path=f"/tmp/{source_key}.png",
         instagram_text=f"instagram {source_key}",
         twitter_text=twitter_text,
+        pinterest_text=pinterest_text,
+        pinterest_title=pinterest_title,
+        category=category,
     )
     mark_media_success(
         connection,
@@ -293,6 +359,79 @@ def test_social_phase_posts_twitter_when_enabled_by_default() -> None:
     post = get_post_by_source_key(connection, "enabled")
     assert post is not None
     assert post.twitter_status == "SUCCESS"
+
+
+def test_social_phase_skips_pinterest_when_disabled() -> None:
+    connection = connect(":memory:")
+    provider = RecordingSocialProvider()
+    batch = DailyBatch(
+        connection,
+        provider,
+        FolderLayout(Path("tests/_unused")),
+        None,
+        enable_pinterest=False,
+    )
+    _seed_media_ready_post(
+        connection,
+        source_key="pin-disabled",
+        twitter_text="x本文",
+        pinterest_text="Pinterest本文",
+        pinterest_title="Pinterest題名",
+    )
+
+    batch.publish_social_once()
+
+    assert "pinterest" not in [service for service, _ in provider.calls]
+
+
+def test_social_phase_skips_pinterest_without_text() -> None:
+    connection = connect(":memory:")
+    provider = RecordingSocialProvider()
+    batch = DailyBatch(
+        connection,
+        provider,
+        FolderLayout(Path("tests/_unused")),
+        None,
+        enable_pinterest=True,
+    )
+    _seed_media_ready_post(connection, source_key="old-manifest", twitter_text="x本文")
+
+    batch.publish_social_once()
+
+    assert "pinterest" not in [service for service, _ in provider.calls]
+
+
+def test_social_phase_posts_pinterest_with_category_metadata() -> None:
+    connection = connect(":memory:")
+    provider = RecordingSocialProvider()
+    batch = DailyBatch(
+        connection,
+        provider,
+        FolderLayout(Path("tests/_unused")),
+        None,
+        enable_pinterest=True,
+        pinterest_destination_url="https://newaitees.github.io/NewAITees",
+    )
+    _seed_media_ready_post(
+        connection,
+        source_key="pin-enabled",
+        twitter_text="x本文",
+        pinterest_text="Pinterest本文",
+        pinterest_title="Pinterest題名",
+        category="horror",
+    )
+
+    batch.publish_social_once()
+
+    post = get_post_by_source_key(connection, "pin-enabled")
+    assert post is not None
+    assert post.pinterest_status == "SUCCESS"
+    assert (
+        "pinterest",
+        "horror",
+        "Pinterest題名",
+        "https://newaitees.github.io/NewAITees",
+    ) in provider.details
 
 
 def test_social_phase_uses_published_media_url() -> None:

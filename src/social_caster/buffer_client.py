@@ -45,14 +45,26 @@ class BufferClient:
         image_url: str,
         due_at: str | None = None,
         service: str | None = None,
+        board_service_id: str | None = None,
+        title: str | None = None,
+        destination_url: str | None = None,
     ) -> str:
         mode = "customScheduled" if due_at else "addToQueue"
         due_at_input = f', dueAt: "{due_at}"' if due_at else ""
-        metadata = (
-            "metadata: { instagram: { type: post, shouldShareToFeed: true } }"
-            if service == "instagram"
-            else ""
-        )
+        if service == "instagram":
+            metadata = "metadata: { instagram: { type: post, shouldShareToFeed: true } }"
+        elif service == "pinterest":
+            if not board_service_id or not title or not destination_url:
+                raise ValueError("Pinterest投稿にはボードID・タイトル・リンク先が必要です")
+            metadata = (
+                "metadata: { pinterest: { "
+                f"boardServiceId: {json.dumps(board_service_id)}, "
+                f"title: {json.dumps(title, ensure_ascii=False)}, "
+                f"url: {json.dumps(destination_url)}"
+                " } }"
+            )
+        else:
+            metadata = ""
         query = f"""
         mutation CreatePost {{
           createPost(input: {{

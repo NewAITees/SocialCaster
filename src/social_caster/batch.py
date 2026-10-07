@@ -27,6 +27,7 @@ from social_caster.provider import SocialProvider
 
 # 機械的な等間隔投稿を避けるため、基準時刻に0〜この分数のゆらぎを足す（凍結対策）。
 SCHEDULE_JITTER_MAX_MINUTES = 50
+PINTEREST_DESTINATION_URL = "https://newaitees.github.io/NewAITees"
 
 
 class MediaPublisher(Protocol):
@@ -70,12 +71,16 @@ class DailyBatch:
         layout: FolderLayout,
         media_publisher: MediaPublisher | None,
         enable_twitter: bool = True,
+        enable_pinterest: bool = False,
+        pinterest_destination_url: str = PINTEREST_DESTINATION_URL,
     ) -> None:
         self._connection = connection
         self._provider = provider
         self._layout = layout
         self._media_publisher = media_publisher
         self._enable_twitter = enable_twitter
+        self._enable_pinterest = enable_pinterest
+        self._pinterest_destination_url = pinterest_destination_url
 
     def run_once(self) -> None:
         if self._media_publisher is None:
@@ -133,6 +138,17 @@ class DailyBatch:
             if due_at and datetime.fromisoformat(due_at) <= datetime.now(UTC):
                 due_at = None
             self._try_post(post, "instagram", post.instagram_status, post.instagram_text, due_at)
+            if self._enable_pinterest and post.pinterest_text is not None:
+                self._try_post(
+                    post,
+                    "pinterest",
+                    post.pinterest_status,
+                    post.pinterest_text,
+                    due_at,
+                    category=post.category,
+                    title=post.pinterest_title,
+                    destination_url=self._pinterest_destination_url,
+                )
             if not self._enable_twitter:
                 continue
             if post.twitter_status != "SUCCESS" and is_duplicate_text(
@@ -161,6 +177,8 @@ class DailyBatch:
             image_path = manifest_path.parent / image_name
             instagram_text = _required_string(payload, "instagram_text")
             twitter_text = _required_string(payload, "twitter_text")
+            pinterest_text = _optional_string(payload, "pinterest_text")
+            pinterest_title = _optional_string(payload, "pinterest_title")
             source_key = self._source_key(manifest_path)
             post = get_post_by_source_key(self._connection, source_key)
             if post is None:
@@ -170,6 +188,9 @@ class DailyBatch:
                     image_path=str(image_path),
                     instagram_text=instagram_text,
                     twitter_text=twitter_text,
+                    pinterest_text=pinterest_text,
+                    pinterest_title=pinterest_title,
+                    category=category,
                     publish_at=None,
                 )
                 post = get_post_by_source_key(self._connection, source_key)
@@ -199,7 +220,16 @@ class DailyBatch:
         return archive_image_path
 
     def _try_post(
-        self, post: Post, service: str, status: str, text: str, due_at: str | None
+        self,
+        post: Post,
+        service: str,
+        status: str,
+        text: str,
+        due_at: str | None,
+        *,
+        category: str | None = None,
+        title: str | None = None,
+        destination_url: str | None = None,
     ) -> None:
         if status == "SUCCESS":
             return
@@ -207,7 +237,13 @@ class DailyBatch:
             if self._provider is None:
                 raise RuntimeError("SNS投稿処理が設定されていません")
             provider_id = self._provider.post(
-                service=service, text=text, image_url=post.image_url, due_at=due_at
+                service=service,
+                text=text,
+                image_url=post.image_url,
+                due_at=due_at,
+                category=category,
+                title=title,
+                destination_url=destination_url,
             )
         except Exception as exc:  # noqa: BLE001 - continue with the other service
             mark_failed(self._connection, post_id=post.id, service=service, error=str(exc))
@@ -272,4 +308,13 @@ def _required_string(payload: dict[str, object], key: str) -> str:
     value = payload.get(key)
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"投稿JSONの{key}が未設定です")
+    return value
+
+
+def _optional_string(payload: dict[str, object], key: str) -> str | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"投稿JSONの{key}は空でない文字列である必要があります")
     return value

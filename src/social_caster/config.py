@@ -1,8 +1,18 @@
 """Environment-backed application configuration."""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+PINTEREST_CATEGORIES = (
+    "abstract_image",
+    "botanical",
+    "bottled_image",
+    "horror",
+    "joke",
+    "monochrome",
+    "other",
+)
 
 
 @dataclass(frozen=True)
@@ -14,11 +24,25 @@ class Settings:
     database_path: Path = Path("database/posts.db")
     log_path: Path = Path("logs/social-caster.log")
     enable_twitter: bool = True
+    pinterest_channel_id: str = ""
+    pinterest_board_default: str = ""
+    pinterest_boards: dict[str, str] = field(default_factory=dict)
+    enable_pinterest: bool = False
     target_stock: int = 9
     buffer_reservation_cap: int = 10
 
     @classmethod
     def from_env(cls) -> "Settings":
+        enable_pinterest = _enabled("ENABLE_PINTEREST", default="false")
+        pinterest_board_default = (
+            _required("BUFFER_PINTEREST_BOARD_DEFAULT") if enable_pinterest else ""
+        )
+        pinterest_boards = {
+            category: os.getenv(
+                f"BUFFER_PINTEREST_BOARD_{category.upper()}", pinterest_board_default
+            )
+            for category in PINTEREST_CATEGORIES
+        }
         return cls(
             buffer_api_key=_required("BUFFER_API_KEY"),
             instagram_channel_id=_required("BUFFER_INSTAGRAM_CHANNEL_ID"),
@@ -26,8 +50,13 @@ class Settings:
             poll_interval_seconds=int(os.getenv("POLL_INTERVAL_SECONDS", "300")),
             database_path=Path(os.getenv("DATABASE_PATH", "database/posts.db")),
             log_path=Path(os.getenv("LOG_PATH", "logs/social-caster.log")),
-            enable_twitter=os.getenv("ENABLE_TWITTER", "true").strip().lower()
-            not in {"false", "0", "no"},
+            enable_twitter=_enabled("ENABLE_TWITTER", default="true"),
+            pinterest_channel_id=(
+                _required("BUFFER_PINTEREST_CHANNEL_ID") if enable_pinterest else ""
+            ),
+            pinterest_board_default=pinterest_board_default,
+            pinterest_boards=pinterest_boards,
+            enable_pinterest=enable_pinterest,
             target_stock=int(os.getenv("TARGET_STOCK", "9")),
             buffer_reservation_cap=int(os.getenv("BUFFER_RESERVATION_CAP", "10")),
         )
@@ -59,3 +88,7 @@ def _required(name: str) -> str:
     if not value:
         raise ValueError(f"必須環境変数が未設定です: {name}")
     return value
+
+
+def _enabled(name: str, *, default: str) -> bool:
+    return os.getenv(name, default).strip().lower() not in {"false", "0", "no"}
