@@ -8,7 +8,7 @@ SocialCasterを実行するPCで、管理者として次を実行します。
 PowerShell -ExecutionPolicy Bypass -File scripts/setup_input_smb_share.ps1
 ```
 
-表示された共有先を、別PCのエクスプローラーで開きます。`inbox`へ画像を置き、AIは画像と同じ場所にJSONを作成します。
+表示された共有先を、別PCのエクスプローラーで開きます。`inbox`へ画像を置きます。AIは投稿JSONを`input/manifests`へ作成するため、`inbox`には画像だけが並びます。
 
 ホストPC名だけを確認する場合は、SocialCaster PCで次を実行します。
 
@@ -29,7 +29,7 @@ monster.png.part  ← コピー中
 monster.png       ← コピー完了後にリネーム
 ```
 
-画像は共有先の`inbox`へ置き、AIが同じフォルダに投稿JSONを作成します。日次処理がNewAITeesへの画像公開とBuffer投稿を順番に行います。
+画像は共有先の`inbox`へ置き、AIが`input/manifests`へ投稿JSONを作成します。日次処理がNewAITeesへの画像公開とBuffer投稿を順番に行います。
 
 ## 1. 画像を置く
 
@@ -40,14 +40,14 @@ monster.png       ← コピー完了後にリネーム
 次の指示を渡します。
 
 ```text
-`C:\projects\SocialCaster\input\inbox`にある未処理画像をファイル名順に最大3件処理してください。
+`D:\projects\SocialCaster\input\inbox`にある未処理画像をファイル名順に最大3件処理してください。
 
 画像ごとに以下を行ってください。
 1. 画像の内容を分析する。分析結果は投稿本文に含めない
 2. 指定されたルールに従ってInstagram用の日本語・英語マーケティング文章と20個の小文字ハッシュタグを作る
 3. X用に同じ方向性の本文を280文字以内で作る
-4. 元画像と同じファイル名のJSONを`C:\projects\SocialCaster\input\inbox`へ作成する
-5. NewAITeesへの公開成功後、SocialCasterが画像とJSONを`C:\projects\SocialCaster\input\archive`へ移動する
+4. 元画像と同じファイル名のJSONを`D:\projects\SocialCaster\input\manifests`へ作成する
+5. NewAITeesへの公開成功後、SocialCasterが画像とJSONを`D:\projects\SocialCaster\input\archive`へ移動する
 
 JSON形式:
 {
@@ -57,7 +57,7 @@ JSON形式:
   "twitter_text": "X本文"
 }
 
-画像とJSONのファイル名は一致させ、JSONを先に作らないでください。
+画像とJSONのファイル名は一致させ、JSONを先に作らないでください。画像は`inbox`、JSONは`manifests`に置き分けます。
 同名JSONがある画像は再処理せず、`publish_at`をJSONへ追加しないでください。
 ```
 
@@ -65,4 +65,4 @@ JSON形式:
 
 ## 3. 日次バッチ
 
-日次バッチは`input/inbox/`の画像とJSONを最大3件処理します。まずNewAITeesへカテゴリ別に画像を公開し、公開URLを確定した後、画像とJSONを`input/archive/`へ移動します。その後、公開URLを使ってBufferからInstagramとXへ投稿します。画像公開の状態とSNS別の再送状態はSQLiteで管理します。
+日次バッチは`input/manifests/`のJSONと`input/inbox/`の画像を最大3件処理します。まずNewAITeesへカテゴリ別に画像を公開し、公開URLを確定した後、画像とJSONを`input/archive/`へ移動します。その後、公開URLを使ってBufferからInstagramとXへ投稿します。画像公開の状態とSNS別の再送状態はSQLiteで管理します。
