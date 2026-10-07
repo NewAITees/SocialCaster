@@ -15,6 +15,7 @@ $memoryFile = Join-Path $autoDir "memory.md"
 $statusFile = Join-Path $root "automation\status.py"
 $verifyManifests = Join-Path $root "scripts\verify_manifests.py"
 $inbox = Join-Path $root "input\inbox"
+$manifestDir = Join-Path $root "input\manifests"
 $python = Join-Path $root ".venv\Scripts\python.exe"
 $maxIterations = 10
 
@@ -53,6 +54,50 @@ function Write-StopReason {
     $entry = "## {0}`n- stop reason: {1}`n- log: {2}`n" -f `
         (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Reason, (Split-Path $logFile -Leaf)
     Add-Content -Path $memoryFile -Value $entry -Encoding utf8
+}
+
+function Remove-WorkspaceJunk {
+    # JSON生成ステップが検証用の使い捨てファイルをリポジトリへ書き残すことがある。
+    # 放置すると ruff / mypy がそれらを拾って pre-commit が落ちるため毎回消す。
+    # 画像とmanifestには触れない。
+    $targets = @(
+        (Join-Path $root "_*.py"),
+        (Join-Path $root "_*.ps1"),
+        (Join-Path $root "_*.sh"),
+        (Join-Path $root "_*.js"),
+        (Join-Path $root "_*.txt"),
+        (Join-Path $inbox "_*"),
+        (Join-Path $manifestDir "_*"),
+        (Join-Path $inbox "Thumbs.db"),
+        (Join-Path $manifestDir "Thumbs.db")
+    )
+    $removed = 0
+    foreach ($pattern in $targets) {
+        foreach ($item in (Get-ChildItem -Path $pattern -File -ErrorAction SilentlyContinue)) {
+            # 画像とmanifestは絶対に消さない。
+            if ($item.Extension -in ".png", ".jpg", ".jpeg", ".json") { continue }
+            Remove-Item -LiteralPath $item.FullName -Force -ErrorAction SilentlyContinue
+            $removed++
+        }
+    }
+    if ($removed -gt 0) {
+        Add-Content -Path $logFile -Encoding utf8 -Value "==== cleanup: removed $removed junk file(s) ===="
+    }
+}
+
+function Remove-OldLogs {
+    # ログは1日1本増え続けるため、直近30日分だけ残す。
+    $limit = (Get-Date).AddDays(-30)
+    $old = @(
+        Get-ChildItem -Path $logDir -Filter "*.log" -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -lt $limit }
+    )
+    foreach ($item in $old) {
+        Remove-Item -LiteralPath $item.FullName -Force -ErrorAction SilentlyContinue
+    }
+    if ($old.Count -gt 0) {
+        Add-Content -Path $logFile -Encoding utf8 -Value "==== cleanup: removed $($old.Count) old log(s) ===="
+    }
 }
 
 function Send-DiscordNotification {
@@ -117,7 +162,7 @@ try {
             Get-ChildItem -Path $inbox -File -ErrorAction SilentlyContinue |
                 Where-Object {
                     $_.Extension -in ".png", ".jpg", ".jpeg" -and
-                    -not (Test-Path ($_.FullName + ".json"))
+                    -not (Test-Path (Join-Path $manifestDir ($_.Name + ".json")))
                 }
         )
         if ($unprocessedImages.Count -eq 0) {
@@ -141,6 +186,8 @@ try {
             $ErrorActionPreference = $savedErrorActionPreference
         }
         if ($claudeExit -ne 0) { throw "claude JSON generation failed (exit=$claudeExit)" }
+
+        Remove-WorkspaceJunk
 
         Add-Content -Path $logFile -Value "==== validation: verify-manifests ===="
         $savedErrorActionPreference = $ErrorActionPreference
@@ -194,6 +241,8 @@ catch {
     Add-Content -Path $logFile -Value "==== error: $stopReason ===="
 }
 finally {
+    Remove-WorkspaceJunk
+    Remove-OldLogs
     Write-StopReason $stopReason
     $summary = "## {0}`n- publish-media exit: {1}`n- publish-social exit: {2}`n- log: {3}`n" -f `
         (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $mediaExit, $socialExit, (Split-Path $logFile -Leaf)
