@@ -55,6 +55,45 @@ function Write-StopReason {
     Add-Content -Path $memoryFile -Value $entry -Encoding utf8
 }
 
+function Send-DiscordNotification {
+    param([string]$Title, [string]$Reason, [string[]]$Notes, [string]$LogPath)
+
+    # webhook URLは.env（git管理外）にのみ置く。未設定なら通知せず黙って戻る。
+    $envFile = Join-Path $root ".env"
+    if (-not (Test-Path $envFile)) { return }
+    $webhook = $null
+    foreach ($line in (Get-Content $envFile -Encoding UTF8)) {
+        if ($line -match '^\s*DISCORD_WEBHOOK_URL\s*=\s*(\S+)\s*$') { $webhook = $matches[1] }
+    }
+    if ([string]::IsNullOrWhiteSpace($webhook)) { return }
+
+    $tail = ""
+    if (Test-Path $LogPath) {
+        $tail = Get-Content $LogPath -Raw -Encoding UTF8
+        if ($tail.Length -gt 1200) { $tail = $tail.Substring($tail.Length - 1200) }
+    }
+
+    $lines = @(
+        ("**" + $Title + "**"),
+        ("- 日時: " + (Get-Date -Format "yyyy-MM-dd HH:mm:ss")),
+        ("- 停止理由: " + $Reason),
+        ("- ログ: " + (Split-Path $LogPath -Leaf))
+    )
+    foreach ($note in $Notes) { $lines += ("- 警告: " + $note) }
+    # ``` をPowerShellのエスケープ文字と衝突させずに組み立てる。
+    $fence = ([string][char]96) * 3
+    $lines += @("", $fence, $tail, $fence)
+    $content = $lines -join "`n"
+    # Discordのメッセージ上限は2000文字。
+    if ($content.Length -gt 1990) { $content = $content.Substring(0, 1990) }
+
+    # 本処理はWindows PowerShell 5.1で動くため、TLS1.2を明示する。
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $body = [System.Text.Encoding]::UTF8.GetBytes((@{ content = $content } | ConvertTo-Json -Compress))
+    Invoke-RestMethod -Uri $webhook -Method Post `
+        -ContentType "application/json; charset=utf-8" -Body $body | Out-Null
+}
+
 $mediaExit = 0
 $socialExit = 0
 $stopReason = "maximum iteration cap reached"
@@ -158,6 +197,40 @@ finally {
     $summary = "## {0}`n- publish-media exit: {1}`n- publish-social exit: {2}`n- log: {3}`n" -f `
         (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $mediaExit, $socialExit, (Split-Path $logFile -Leaf)
     Add-Content -Path $memoryFile -Value $summary -Encoding utf8
+
+    # exitが0でも「静かに何も投稿しない」ことがある（publish-mediaは失敗してもexit 0を返す）。
+    # 完走したかどうかではなく、終了時点の在庫と失敗件数で結果を判定する。
+    $warnings = @()
+    try {
+        $closingStatus = Get-Status
+        if ($closingStatus.MEDIA_FAILED -gt 0) {
+            $warnings += ("公開に失敗したままの投稿が {0} 件あります (MEDIA_FAILED)" -f $closingStatus.MEDIA_FAILED)
+        }
+        if ($closingStatus.STOCK -lt $closingStatus.TARGET_STOCK) {
+            $warnings += ("予約在庫が目標に届いていません: STOCK={0} TARGET={1}" -f `
+                $closingStatus.STOCK, $closingStatus.TARGET_STOCK)
+        }
+    }
+    catch {
+        $warnings += ("実行後の在庫確認に失敗しました: " + $_.Exception.Message)
+    }
+
+    if ($automationExit -ne 0 -or $warnings.Count -gt 0) {
+        if ($automationExit -ne 0) {
+            $title = "SocialCaster 自動実行が失敗しました"
+        }
+        else {
+            $title = "SocialCaster 自動実行は完走しましたが結果が想定外です"
+        }
+        # 通知の失敗で本処理の結果を壊さないため、例外はログに残して飲み込む。
+        try {
+            Send-DiscordNotification -Title $title -Reason $stopReason -Notes $warnings -LogPath $logFile
+        }
+        catch {
+            Add-Content -Path $logFile -Encoding utf8 `
+                -Value ("==== discord notification failed: " + $_.Exception.Message + " ====")
+        }
+    }
 }
 
 exit $automationExit
