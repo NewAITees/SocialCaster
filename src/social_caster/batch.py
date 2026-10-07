@@ -47,11 +47,17 @@ class FolderLayout:
         return self.root / "inbox"
 
     @property
+    def manifests(self) -> Path:
+        # 利用者が画像を置く inbox に JSON が混ざらないよう、manifest は別フォルダに置く。
+        return self.root / "manifests"
+
+    @property
     def archive(self) -> Path:
         return self.root / "archive"
 
     def ensure(self) -> None:
         self.inbox.mkdir(parents=True, exist_ok=True)
+        self.manifests.mkdir(parents=True, exist_ok=True)
         self.archive.mkdir(parents=True, exist_ok=True)
 
 
@@ -94,14 +100,14 @@ class DailyBatch:
             raise RuntimeError("画像公開処理が設定されていません")
         self._layout.ensure()
         manifests = sorted(
-            self._layout.inbox.glob("*.json"),
+            self._layout.manifests.glob("*.json"),
             key=lambda path: (self._publish_at(path), path.name),
         )
         for manifest_path in self._select_media_manifests(manifests, count):
             self._publish_media_manifest(manifest_path)
 
     def _select_media_manifests(self, manifests: list[Path], count: int) -> list[Path]:
-        # 失敗した manifest は inbox に残り辞書順の先頭を占めるため、無条件に先頭から
+        # 失敗した manifest は manifests に残り辞書順の先頭を占めるため、無条件に先頭から
         # 取ると同じ失敗を毎回リトライして新規の画像へ永久に到達できない。
         # そこで1回の実行の予算を「リトライ枠」と「新規枠」に分ける。
         retry: list[Path] = []
@@ -174,7 +180,7 @@ class DailyBatch:
             payload = _read_manifest(manifest_path)
             image_name = _required_string(payload, "image")
             category = _required_string(payload, "category")
-            image_path = manifest_path.parent / image_name
+            image_path = self._layout.inbox / image_name
             instagram_text = _required_string(payload, "instagram_text")
             twitter_text = _required_string(payload, "twitter_text")
             pinterest_text = _optional_string(payload, "pinterest_text")

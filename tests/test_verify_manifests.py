@@ -49,8 +49,11 @@ def _valid_payload() -> dict[str, object]:
 
 
 def _write_manifest(root: Path, payload: object) -> Path:
-    (root / "art.png").write_bytes(b"image")
-    manifest = root / "art.png.json"
+    # 画像は inbox、manifest は manifests に分かれて置かれる。
+    (root / "inbox").mkdir(parents=True, exist_ok=True)
+    (root / "manifests").mkdir(parents=True, exist_ok=True)
+    (root / "inbox" / "art.png").write_bytes(b"image")
+    manifest = root / "manifests" / "art.png.json"
     manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     return manifest
 
@@ -58,7 +61,7 @@ def _write_manifest(root: Path, payload: object) -> Path:
 def test_valid_manifest_passes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     _write_manifest(tmp_path, _valid_payload())
 
-    assert main(tmp_path) == 0
+    assert main(tmp_path / "manifests") == 0
     assert capsys.readouterr().out == "All manifests are valid.\n"
 
 
@@ -93,12 +96,12 @@ Mutation = Callable[[dict[str, object], Path], None]
 
 
 def _missing_image(payload: dict[str, object], root: Path) -> None:
-    (root / "art.png").unlink()
+    (root / "inbox" / "art.png").unlink()
 
 
 def _wrong_image_name(payload: dict[str, object], root: Path) -> None:
     payload["image"] = "other.png"
-    (root / "other.png").write_bytes(b"image")
+    (root / "inbox" / "other.png").write_bytes(b"image")
 
 
 def _invalid_category(payload: dict[str, object], root: Path) -> None:
@@ -177,16 +180,17 @@ def test_manifest_violation_returns_nonzero(
     mutation(payload, tmp_path)
     manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
-    assert main(tmp_path) == 1
+    assert main(tmp_path / "manifests") == 1
     output = capsys.readouterr().out
     assert manifest.name in output
     assert message in output
 
 
 def test_invalid_json_returns_nonzero(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    manifest = tmp_path / "broken.png.json"
+    (tmp_path / "manifests").mkdir(parents=True, exist_ok=True)
+    manifest = tmp_path / "manifests" / "broken.png.json"
     manifest.write_text("{", encoding="utf-8")
 
     assert validate_manifest(manifest)
-    assert main(tmp_path) == 1
+    assert main(tmp_path / "manifests") == 1
     assert f"{manifest.name}: JSONを解析できません" in capsys.readouterr().out

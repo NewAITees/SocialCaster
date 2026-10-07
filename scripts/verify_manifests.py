@@ -1,4 +1,4 @@
-"""Validate every post manifest currently present in input/inbox."""
+"""Validate every post manifest currently present in input/manifests."""
 
 import json
 import re
@@ -32,7 +32,7 @@ def validate_manifest(manifest_path: Path) -> list[str]:
     if not isinstance(image, str) or not image:
         errors.append("imageが存在し空でない文字列である必要があります")
     else:
-        if not (manifest_path.parent / image).is_file():
+        if not (manifest_path.parent.parent / "inbox" / image).is_file():
             errors.append(f"imageで指定された画像が存在しません: {image}")
         if image != manifest_path.name.removesuffix(".json"):
             errors.append(f"imageがJSONファイル名と対応していません: {image}")
@@ -95,9 +95,9 @@ def validate_manifest(manifest_path: Path) -> list[str]:
     return errors
 
 
-def main(inbox: Path = Path("input/inbox")) -> int:
+def main(manifests: Path = Path("input/manifests")) -> int:
     failed = False
-    for manifest_path in sorted(inbox.glob("*.json")):
+    for manifest_path in sorted(manifests.glob("*.json")):
         for error in validate_manifest(manifest_path):
             print(f"{manifest_path.name}: {error}")
             failed = True

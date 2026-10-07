@@ -48,10 +48,13 @@ class FakeSocialProvider:
 
 
 def _write_manifest(root: Path, publish_at: str | None = None) -> Path:
+    # 画像は inbox、manifest は manifests に分かれて置かれる。
     inbox = root / "inbox"
+    manifests = root / "manifests"
     inbox.mkdir(parents=True)
+    manifests.mkdir(parents=True)
     (inbox / "a.png").write_bytes(b"image")
-    manifest = inbox / "a.json"
+    manifest = manifests / "a.json"
     manifest.write_text(
         json.dumps(
             {
@@ -81,7 +84,7 @@ def test_media_phase_archives_inputs_after_publishing() -> None:
             publisher,
         ).publish_media_once()
 
-        post = get_post_by_source_key(connection, "inbox/a.json")
+        post = get_post_by_source_key(connection, "manifests/a.json")
         assert post is not None
         assert post.media_status == "SUCCESS"
         assert post.image_path == str(root / "inbox/a.png")
@@ -111,7 +114,7 @@ def test_media_phase_stores_optional_pinterest_fields() -> None:
             FakeMediaPublisher(),
         ).publish_media_once()
 
-        post = get_post_by_source_key(connection, "inbox/a.json")
+        post = get_post_by_source_key(connection, "manifests/a.json")
         assert post is not None
         assert post.category == "horror"
         assert post.pinterest_text == "Pinterest本文"
@@ -450,7 +453,7 @@ def test_social_phase_uses_published_media_url() -> None:
         assert not (root / "inbox/a.png").exists()
         assert (root / "archive/a.json").exists()
         assert (root / "archive/a.png").exists()
-        post = get_post_by_source_key(connection, "inbox/a.json")
+        post = get_post_by_source_key(connection, "manifests/a.json")
         assert post is not None
         assert post.publish_at is not None
         assert post.archive_image_path == str(root / "archive/a.png")
@@ -477,9 +480,11 @@ class SelectiveFailingPublisher:
 
 def _write_named_manifest(root: Path, name: str) -> Path:
     inbox = root / "inbox"
+    manifests = root / "manifests"
     inbox.mkdir(parents=True, exist_ok=True)
+    manifests.mkdir(parents=True, exist_ok=True)
     (inbox / f"{name}.png").write_bytes(b"image")
-    manifest = inbox / f"{name}.png.json"
+    manifest = manifests / f"{name}.png.json"
     manifest.write_text(
         json.dumps(
             {
@@ -515,7 +520,7 @@ def test_media_phase_reaches_new_manifests_despite_leading_failures() -> None:
 
         # リトライは1件だけに制限し、残りの枠は必ず新規へ回す
         assert second.published == ["a_fail1.png", "b_new1.png", "b_new2.png"]
-        assert get_post_by_source_key(connection, "inbox/b_new1.png.json") is not None
+        assert get_post_by_source_key(connection, "manifests/b_new1.png.json") is not None
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -557,5 +562,41 @@ def test_media_phase_skips_already_published_manifests() -> None:
 
         # 成功した manifest は archive へ移動しているので二度処理しない
         assert second.published == ["b_new1.png"]
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_media_phase_keeps_images_and_manifests_in_separate_folders() -> None:
+    # 利用者が画像を置く inbox に JSON が混ざらないようにする。
+    root = Path("tests/_runtime_batch_split")
+    try:
+        manifest = _write_manifest(root, "2026-01-01T00:00:00+00:00")
+        assert manifest.parent.name == "manifests"
+        connection = connect(":memory:")
+        publisher = FakeMediaPublisher()
+
+        DailyBatch(connection, None, FolderLayout(root), publisher).publish_media_once()
+
+        post = get_post_by_source_key(connection, "manifests/a.json")
+        assert post is not None
+        assert post.media_status == "SUCCESS"
+        # 画像は inbox から読み、公開後は画像も manifest も archive へ移す
+        assert publisher.published == [(root / "inbox/a.png", "horror")]
+        assert not (root / "inbox/a.png").exists()
+        assert not manifest.exists()
+        assert (root / "archive/a.png").exists()
+        assert (root / "archive/a.json").exists()
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_layout_ensure_creates_the_manifests_folder() -> None:
+    root = Path("tests/_runtime_batch_ensure")
+    try:
+        layout = FolderLayout(root)
+        layout.ensure()
+        assert layout.inbox.is_dir()
+        assert layout.manifests.is_dir()
+        assert layout.archive.is_dir()
     finally:
         shutil.rmtree(root, ignore_errors=True)
