@@ -9,6 +9,7 @@ __pycache__/
 .env.*
 !.env.example
 database/*.db
+database/backup/
 logs/*.log
 gcm-diagnose.log
 automations/**/logs/
