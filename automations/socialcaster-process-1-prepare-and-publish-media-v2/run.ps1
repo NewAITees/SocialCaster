@@ -7,7 +7,7 @@
 $OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $env:PYTHONIOENCODING = "utf-8"
 
-$root = "C:\projects\SocialCaster"
+$root = "D:\projects\SocialCaster"
 $autoDir = Join-Path $root "automations\socialcaster-process-1-prepare-and-publish-media-v2"
 $promptFile = Join-Path $autoDir "prompt.md"
 $logDir = Join-Path $autoDir "logs"
