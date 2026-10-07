@@ -57,7 +57,7 @@ class NewAITeesPublisher:
         )
         if commit.returncode not in (0, 1):
             raise NewAITeesError(commit.stderr.strip() or "NewAITeesのcommitに失敗しました")
-        self._run_git("push", "origin", self._branch)
+        self._push_with_rebase()
         return (
             f"{self._pages_base_url}/assets/gallery-social/{quote(category)}/{quote(social_name)}"
         )
@@ -96,7 +96,7 @@ class NewAITeesPublisher:
         self,
         url: str,
         *,
-        timeout_seconds: int = 300,
+        timeout_seconds: int = 900,
         interval_seconds: int = 10,
         opener: Callable[..., Any] = urlopen,
         sleep: Callable[[float], None] = time.sleep,
@@ -116,6 +116,16 @@ class NewAITeesPublisher:
             sleep(interval_seconds)
         raise NewAITeesError(f"GitHub Pagesへの画像反映がタイムアウトしました: {url}")
 
+    def _push_with_rebase(self) -> None:
+        # NewAITeesはGitHub Actionsが gallery-data を自動コミットして push するため、
+        # 画像を1枚公開するたびにリモートが先に進み、次のpushが fetch first で弾かれる。
+        # 弾かれた場合だけリモートを取り込んで1回だけ再試行する。
+        push = self._run_git("push", "origin", self._branch, allow_failure=True)
+        if push.returncode == 0:
+            return
+        self._run_git("pull", "--rebase", "--autostash", "origin", self._branch)
+        self._run_git("push", "origin", self._branch)
+
     def _run_git(
         self, *arguments: str, allow_failure: bool = False
     ) -> subprocess.CompletedProcess[str]:
@@ -123,6 +133,8 @@ class NewAITeesPublisher:
             "git",
             "-c",
             f"safe.directory={self._repository_path.resolve()}",
+            "-c",
+            "core.longpaths=true",
             *arguments,
             cwd=self._repository_path,
             allow_failure=allow_failure,

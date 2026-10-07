@@ -1,8 +1,11 @@
+import inspect
 import shutil
 import subprocess
 from pathlib import Path
 
-from social_caster.newaitees import NewAITeesPublisher
+import pytest
+
+from social_caster.newaitees import NewAITeesError, NewAITeesPublisher
 
 
 def test_publish_returns_social_variant_url() -> None:
@@ -49,6 +52,8 @@ def test_publish_returns_social_variant_url() -> None:
             "git",
             "-c",
             f"safe.directory={repository.resolve()}",
+            "-c",
+            "core.longpaths=true",
             "add",
             "--",
             "assets/gallery/horror/image.png",
@@ -60,6 +65,8 @@ def test_publish_returns_social_variant_url() -> None:
             "git",
             "-c",
             f"safe.directory={repository.resolve()}",
+            "-c",
+            "core.longpaths=true",
             "push",
             "origin",
             "main",
@@ -71,3 +78,71 @@ def test_publish_returns_social_variant_url() -> None:
         assert all(options["errors"] == "replace" for options in run_options)
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+def test_publish_rebases_and_retries_when_push_is_rejected() -> None:
+    # NewAITeesはGitHub Actionsが Auto-update gallery data を push するため、
+    # 画像を1枚公開するたびにリモートが先に進み、次のpushが fetch first で弾かれる。
+    root = Path("tests/_runtime_newaitees_rejected")
+    image = root / "image.png"
+    repository = root / "NewAITees"
+    calls: list[list[str]] = []
+
+    def runner(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        is_push = "push" in command
+        if is_push and sum(1 for call in calls if "push" in call) == 1:
+            return subprocess.CompletedProcess(
+                command, 1, "", "! [rejected]        main -> main (fetch first)"
+            )
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    try:
+        repository.mkdir(parents=True)
+        image.write_bytes(b"png")
+        publisher = NewAITeesPublisher(repository, runner=runner)
+
+        publisher.publish(image, "horror")
+
+        git_arguments = [command[5:] for command in calls if command[0] == "git"]
+        # 弾かれたあとに rebase で取り込み、同じブランチへ再pushする
+        assert ["pull", "--rebase", "--autostash", "origin", "main"] in git_arguments
+        pushes = [arguments for arguments in git_arguments if arguments[0] == "push"]
+        assert pushes == [["push", "origin", "main"], ["push", "origin", "main"]]
+        assert (
+            git_arguments.index(["pull", "--rebase", "--autostash", "origin", "main"])
+            < len(git_arguments) - 1
+        )
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_publish_raises_when_push_fails_even_after_rebase() -> None:
+    root = Path("tests/_runtime_newaitees_push_dead")
+    image = root / "image.png"
+    repository = root / "NewAITees"
+
+    def runner(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if "push" in command:
+            return subprocess.CompletedProcess(command, 1, "", "! [rejected] main -> main")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    try:
+        repository.mkdir(parents=True)
+        image.write_bytes(b"png")
+        publisher = NewAITeesPublisher(repository, runner=runner)
+
+        with pytest.raises(NewAITeesError):
+            publisher.publish(image, "horror")
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_pages_wait_default_timeout_covers_observed_build_time() -> None:
+    # 実測でPages反映に約9分かかったため、既定の300秒では足りない。
+    default = (
+        inspect.signature(NewAITeesPublisher.wait_until_available)
+        .parameters["timeout_seconds"]
+        .default
+    )
+    assert default == 900
