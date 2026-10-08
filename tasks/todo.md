@@ -238,3 +238,12 @@
 - [ ] `memory_pending_*.md` 40件の扱いを決める（memory.md へマージするか、復旧用の証跡として残すか）
 - [ ] `input/archive` 1.1G は NewAITees と GitHub に同じ画像があるため削除可能。手元バックアップを残すかは要判断
 - [ ] `NewAITees/_site` 576M がビルド出力のままコミットされている件の調査（今回は中断）
+
+## 2026-10-08 memory.md の肥大化対応
+- [x] memory.md の用途を確認（prompt.md はパス提示と追記指示のみで、生成の判断には未使用）
+- [x] 書き手ごとのコストを分離（claude=Editで全文読込 / run.ps1=Add-Contentで読込なし）
+- [x] prompt.md から memory への言及を削除し、claude の追記を止めた
+- [x] run.ps1 の追記は残した（コストゼロ、30日より古い stop reason の唯一の保存先）
+- [x] 上書き事故の教訓を lessons.md へ転記した
+- [ ] 弾かれた Instagram 4件が、Buffer の枠が空いたとき自動再送されるか確認する
+- [ ] ログ保持期間30日を延ばすか判断する（本日38件を自動削除）

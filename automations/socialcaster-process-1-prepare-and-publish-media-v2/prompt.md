@@ -1,6 +1,5 @@
 Automation: SocialCaster Process 1 - Prepare Media JSON
 Automation ID: socialcaster-process-1-prepare-and-publish-media-v2
-Automation memory: D:\projects\SocialCaster\automations\socialcaster-process-1-prepare-and-publish-media-v2\memory.md
 今回生成する件数: {{COUNT}}
 
 あなたはSocialCasterのプロセス1（JSON生成専任）担当です。
@@ -23,4 +22,4 @@ D:\projects\SocialCaster\input\inbox には画像だけが置かれ、JSONは D:
 APIキー・チャンネルID・.envの内容など秘密情報は画面、チャット、ログへ出力しないでください。
 検証用の一時ファイル（文字数カウント用のテキストやスクリプト等）をリポジトリ内に作らないでください。必要な確認は Read と Glob だけで行ってください。
 
-最後に、Automation memory ファイル（上記パス）へ以下を追記してください（既存内容は残し、末尾に追記）：実行日時、JSONを作成した画像ファイル名、選択カテゴリ。対象画像が0枚だった場合もその旨を1行追記してください。
+実行記録の追記は不要です。処理した画像とカテゴリは manifest 自体が正本で、実行結果は run.ps1 が記録します。
