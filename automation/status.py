@@ -45,20 +45,26 @@ def main() -> None:
     enabled_stocks = [instagram_stock]
     if enable_pinterest:
         enabled_stocks.append(pinterest_stock)
-    current_stock = min(enabled_stocks)
     target_stock = int(os.getenv("TARGET_STOCK", "9"))
     reservation_cap = int(os.getenv("BUFFER_RESERVATION_CAP", "10"))
+    # 1件のmanifestは有効な全サービスへ同時に予約を作るため、補充数はどのサービスの
+    # 空き枠も超えてはならない。最も在庫が少ないサービスに合わせて算出すると、
+    # 先行しているサービスがBufferの予約上限に当たって弾かれる。
+    refill = min(
+        refill_amount(
+            current_stock=stock,
+            target_stock=target_stock,
+            reservation_cap=reservation_cap,
+        )
+        for stock in enabled_stocks
+    )
     values.update(
         STOCK_INSTAGRAM=instagram_stock,
         STOCK_PINTEREST=pinterest_stock,
         PINTEREST_ENABLED=int(enable_pinterest),
         TARGET_STOCK=target_stock,
         RESERVATION_CAP=reservation_cap,
-        REFILL=refill_amount(
-            current_stock=current_stock,
-            target_stock=target_stock,
-            reservation_cap=reservation_cap,
-        ),
+        REFILL=refill,
     )
     print(" ".join(f"{key}={value}" for key, value in values.items()))
 
