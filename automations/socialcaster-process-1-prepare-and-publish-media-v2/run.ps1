@@ -56,6 +56,44 @@ function Write-StopReason {
     Add-Content -Path $memoryFile -Value $entry -Encoding utf8
 }
 
+function Merge-PendingMemory {
+    # claudeがmemory.mdへ直接追記できなかった場合、memory_pending_*.md へ退避される。
+    # 過去に40件が未マージのまま放置され、記録欠落の原因になった。実行のたびに回収する。
+    # 追記のみを行い、取り込みを確認してから退避ファイルを消す（全文上書きは事故のもと）。
+    $pending = @(Get-ChildItem -Path $autoDir -Filter "memory_pending_*.md" -File -ErrorAction SilentlyContinue |
+        Sort-Object Name)
+    if ($pending.Count -eq 0) { return }
+
+    $merged = 0
+    foreach ($item in $pending) {
+        $body = (Get-Content -LiteralPath $item.FullName -Raw -Encoding UTF8)
+        if ([string]::IsNullOrWhiteSpace($body)) {
+            Remove-Item -LiteralPath $item.FullName -Force -ErrorAction SilentlyContinue
+            continue
+        }
+        # 退避ファイル側が既に出所マーカーを持つ場合は重ねない。
+        $marker = "<!-- {0} -->" -f $item.Name
+        if ($body.TrimStart().StartsWith($marker)) {
+            $entry = "`n{0}`n" -f $body.Trim()
+        }
+        else {
+            $entry = "`n{0}`n{1}`n" -f $marker, $body.TrimEnd()
+        }
+        Add-Content -Path $memoryFile -Value $entry -Encoding utf8
+        # 取り込めたことを確認してから退避ファイルを消す。
+        $probe = $body.TrimEnd()
+        if ($probe.Length -gt 40) { $probe = $probe.Substring(0, 40) }
+        if ((Get-Content -Path $memoryFile -Raw -Encoding UTF8).Contains($probe)) {
+            Remove-Item -LiteralPath $item.FullName -Force -ErrorAction SilentlyContinue
+            $merged++
+        }
+    }
+    if ($merged -gt 0) {
+        Add-Content -Path $logFile -Encoding utf8 `
+            -Value "==== memory: merged $merged pending record(s) ===="
+    }
+}
+
 function Remove-WorkspaceJunk {
     # JSON生成ステップが検証用の使い捨てファイルをリポジトリへ書き残すことがある。
     # 放置すると ruff / mypy がそれらを拾って pre-commit が落ちるため毎回消す。
@@ -178,7 +216,7 @@ try {
         try {
             $ErrorActionPreference = "Continue"
             $prompt | claude -p --setting-sources project --add-dir $root `
-                --allowedTools "Read Write Glob" --output-format text 2>&1 |
+                --allowedTools "Read Edit Write Glob" --output-format text 2>&1 |
                 Out-File -FilePath $logFile -Encoding utf8 -Append
             $claudeExit = $LASTEXITCODE
         }
@@ -187,6 +225,7 @@ try {
         }
         if ($claudeExit -ne 0) { throw "claude JSON generation failed (exit=$claudeExit)" }
 
+        Merge-PendingMemory
         Remove-WorkspaceJunk
 
         Add-Content -Path $logFile -Value "==== validation: verify-manifests ===="
@@ -241,6 +280,7 @@ catch {
     Add-Content -Path $logFile -Value "==== error: $stopReason ===="
 }
 finally {
+    Merge-PendingMemory
     Remove-WorkspaceJunk
     Remove-OldLogs
     Write-StopReason $stopReason
