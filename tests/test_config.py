@@ -11,14 +11,12 @@ def test_settings_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("BUFFER_INSTAGRAM_CHANNEL_ID", "instagram")
     monkeypatch.setenv("BUFFER_X_CHANNEL_ID", "x")
     monkeypatch.setenv("TARGET_STOCK", "8")
-    monkeypatch.setenv("BUFFER_RESERVATION_CAP", "10")
 
     settings = Settings.from_env()
 
     assert settings.buffer_api_key == "key"
     assert settings.database_path == Path("database/posts.db")
     assert settings.target_stock == 8
-    assert settings.buffer_reservation_cap == 10
     assert settings.enable_pinterest is False
 
 
