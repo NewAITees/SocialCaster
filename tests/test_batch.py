@@ -674,3 +674,82 @@ def test_media_phase_fails_the_whole_batch_when_the_push_fails() -> None:
         assert (root / "manifests/a_one.png.json").exists()
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+def test_social_phase_stops_at_the_room_left_on_the_channel() -> None:
+    # Bufferのチャンネルは予約枠が埋まると以降を拒否するため、空き枠を超えて試行しない。
+    connection = connect(":memory:")
+    provider = RecordingSocialProvider()
+    batch = DailyBatch(
+        connection,
+        provider,
+        FolderLayout(Path("tests/_unused")),
+        None,
+        enable_twitter=False,
+    )
+    for index in range(4):
+        _seed_media_ready_post(connection, source_key=f"backlog-{index}", twitter_text="x本文")
+
+    batch.publish_social_once(room={"instagram": 1})
+
+    assert [service for service, _ in provider.calls] == ["instagram"]
+
+
+def test_social_phase_leaves_untried_posts_waiting_not_failed() -> None:
+    # 空き枠待ちは失敗ではない。FAILEDにすると翌日のリトライ対象から外れる。
+    connection = connect(":memory:")
+    provider = RecordingSocialProvider()
+    batch = DailyBatch(
+        connection,
+        provider,
+        FolderLayout(Path("tests/_unused")),
+        None,
+        enable_twitter=False,
+    )
+    _seed_media_ready_post(connection, source_key="goes-through", twitter_text="x本文")
+    skipped_id = _seed_media_ready_post(connection, source_key="no-room", twitter_text="x本文")
+
+    batch.publish_social_once(room={"instagram": 1})
+
+    skipped = get_post_by_source_key(connection, "no-room")
+    assert skipped is not None and skipped.id == skipped_id
+    assert skipped.instagram_status == "WAIT"
+
+
+def test_social_phase_counts_room_per_service() -> None:
+    # Instagramが満杯でもPinterestに空きがあれば、Pinterestだけは進める。
+    connection = connect(":memory:")
+    provider = RecordingSocialProvider()
+    batch = DailyBatch(
+        connection,
+        provider,
+        FolderLayout(Path("tests/_unused")),
+        None,
+        enable_twitter=False,
+        enable_pinterest=True,
+    )
+    _seed_media_ready_post(
+        connection, source_key="pin-only", twitter_text="x本文", pinterest_text="説明"
+    )
+
+    batch.publish_social_once(room={"instagram": 0, "pinterest": 1})
+
+    assert [service for service, _ in provider.calls] == ["pinterest"]
+
+
+def test_social_phase_is_unbounded_when_no_room_is_given() -> None:
+    connection = connect(":memory:")
+    provider = RecordingSocialProvider()
+    batch = DailyBatch(
+        connection,
+        provider,
+        FolderLayout(Path("tests/_unused")),
+        None,
+        enable_twitter=False,
+    )
+    for index in range(3):
+        _seed_media_ready_post(connection, source_key=f"free-{index}", twitter_text="x本文")
+
+    batch.publish_social_once()
+
+    assert len(provider.calls) == 3
