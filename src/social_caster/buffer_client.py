@@ -116,3 +116,68 @@ class BufferClient:
             }
             for channel in channels
         ]
+
+    def scheduled_posts(self, *, organization_id: str, channel_id: str) -> list[dict[str, Any]]:
+        """チャンネルの予約済み投稿をBufferから全件取得する。
+
+        `posts` は totalCount を返さないため、Relayのカーソルを辿ってedgesを集める。
+        在庫の判断はローカルDBの記録ではなくこの実数を基準にする。
+        """
+        query = """
+        query ScheduledPosts($input: PostsInput!, $after: String) {
+          posts(input: $input, first: 100, after: $after) {
+            edges { node { id dueAt status } }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+        """
+        nodes: list[dict[str, Any]] = []
+        after: str | None = None
+        while True:
+            # 送信済みの変数を書き換えないため、ページごとに組み立てる。
+            page = (
+                self.execute(
+                    query,
+                    {
+                        "input": {
+                            "organizationId": organization_id,
+                            "filter": {
+                                "channelIds": [channel_id],
+                                "status": ["scheduled"],
+                            },
+                        },
+                        "after": after,
+                    },
+                ).get("posts")
+                or {}
+            )
+            for edge in page.get("edges") or []:
+                node = edge.get("node")
+                if node:
+                    nodes.append(cast(dict[str, Any], node))
+            page_info = page.get("pageInfo") or {}
+            if not page_info.get("hasNextPage"):
+                return nodes
+            after = page_info.get("endCursor")
+
+    def scheduled_post_limit(self, *, organization_id: str) -> int:
+        """組織の予約枠上限を返す。
+
+        スキーマの説明は組織単位だが、実際の適用はチャンネル単位である
+        （Instagram 6件とPinterest 9件が同時に成立し、合計15件が上限10を超えている）。
+        呼び出し側はサービスごとの上限として扱う。
+        """
+        data = self.execute("""
+        query ScheduledPostLimit {
+          account { organizations { id limits { scheduledPosts } } }
+        }
+        """)
+        organizations = (data.get("account") or {}).get("organizations") or []
+        for organization in organizations:
+            if str(organization.get("id")) != organization_id:
+                continue
+            limit = (organization.get("limits") or {}).get("scheduledPosts")
+            if limit is None:
+                raise BufferApiError(f"Bufferが予約枠上限を返しませんでした: {organization_id}")
+            return int(limit)
+        raise BufferApiError(f"Buffer APIに組織が見つかりません: {organization_id}")
