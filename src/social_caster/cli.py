@@ -13,6 +13,7 @@ from social_caster.database import add_post, connect
 from social_caster.newaitees import NewAITeesPublisher
 from social_caster.provider import BufferProvider
 from social_caster.scheduler import Scheduler
+from social_caster.stock import read_service_stock, service_channels
 
 
 def main() -> None:
@@ -59,6 +60,14 @@ def main() -> None:
             settings.pinterest_board_default,
         )
         if args.command == "publish-social":
+            # 空き枠はその場でBufferから読む。run.ps1側に渡させると、空き枠の
+            # 計算方法が2箇所に分かれて食い違う余地ができる。
+            plan = read_service_stock(
+                BufferClient(settings.buffer_api_key),
+                channels=service_channels(settings),
+                target_stock=settings.target_stock,
+            )
+            room = {service: stock.room for service, stock in plan.items()}
             DailyBatch(
                 connection,
                 provider,
@@ -66,7 +75,7 @@ def main() -> None:
                 None,
                 enable_twitter=settings.enable_twitter,
                 enable_pinterest=settings.enable_pinterest,
-            ).publish_social_once(args.count)
+            ).publish_social_once(args.count, room=room)
             return
         DailyBatch(
             connection,

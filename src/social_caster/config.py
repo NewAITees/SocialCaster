@@ -29,7 +29,6 @@ class Settings:
     pinterest_boards: dict[str, str] = field(default_factory=dict)
     enable_pinterest: bool = False
     target_stock: int = 9
-    buffer_reservation_cap: int = 10
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -58,7 +57,6 @@ class Settings:
             pinterest_boards=pinterest_boards,
             enable_pinterest=enable_pinterest,
             target_stock=int(os.getenv("TARGET_STOCK", "9")),
-            buffer_reservation_cap=int(os.getenv("BUFFER_RESERVATION_CAP", "10")),
         )
 
 

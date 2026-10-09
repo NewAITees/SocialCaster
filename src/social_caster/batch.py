@@ -4,6 +4,7 @@ import json
 import random
 import shutil
 import sqlite3
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
@@ -162,9 +163,34 @@ class DailyBatch:
     def _source_key(self, manifest_path: Path) -> str:
         return manifest_path.relative_to(self._layout.root).as_posix()
 
-    def publish_social_once(self, count: int = SOCIAL_POSTS_PER_RUN) -> None:
+    def publish_social_once(
+        self,
+        count: int = SOCIAL_POSTS_PER_RUN,
+        *,
+        room: Mapping[str, int] | None = None,
+    ) -> None:
+        """未予約分へ時刻を割り当て、予約が成立していない投稿をサービスごとに試行する。
+
+        `count` は新規に時刻を割り当てる件数だけを決める。リトライは `scheduled_posts`
+        の全件が対象で、ここを無制限にするとBufferのチャンネル予約枠を超えて試行し、
+        超えた分が FAILED として積み上がる。`room` はサービス別の空き枠で、
+        含まれないサービスは制限しない。
+        """
         if self._provider is None:
             raise RuntimeError("SNS投稿処理が設定されていません")
+        remaining = dict(room) if room is not None else None
+
+        def claim_slot(service: str, status: str) -> bool:
+            if status == "SUCCESS":
+                return True  # 試行しないので枠を消費しない
+            if remaining is None or service not in remaining:
+                return True
+            if remaining[service] <= 0:
+                return False
+            # 失敗しても枠を戻さない。満杯のチャンネルを叩き続けないための保守的な扱い。
+            remaining[service] -= 1
+            return True
+
         unscheduled = unscheduled_posts(self._connection, limit=count)
         slots = _next_schedule_slots(
             self._connection, count=len(unscheduled), now=datetime.now(UTC)
@@ -176,8 +202,15 @@ class DailyBatch:
             due_at = post.publish_at
             if due_at and datetime.fromisoformat(due_at) <= datetime.now(UTC):
                 due_at = None
-            self._try_post(post, "instagram", post.instagram_status, post.instagram_text, due_at)
-            if self._enable_pinterest and post.pinterest_text is not None:
+            if claim_slot("instagram", post.instagram_status):
+                self._try_post(
+                    post, "instagram", post.instagram_status, post.instagram_text, due_at
+                )
+            if (
+                self._enable_pinterest
+                and post.pinterest_text is not None
+                and claim_slot("pinterest", post.pinterest_status)
+            ):
                 self._try_post(
                     post,
                     "pinterest",
@@ -199,6 +232,8 @@ class DailyBatch:
                     service="twitter",
                     error="類似投稿のためXへの投稿をスキップしました（凍結対策）",
                 )
+                continue
+            if not claim_slot("twitter", post.twitter_status):
                 continue
             tweet_text = diversify_hashtags(strip_urls(post.twitter_text), index=post.id)
             self._try_post(post, "twitter", post.twitter_status, tweet_text, due_at)
@@ -327,6 +362,39 @@ _JST = timezone(timedelta(hours=9))
 def refill_amount(*, current_stock: int, target_stock: int, reservation_cap: int) -> int:
     """Return the needed refill without exceeding Buffer's reservation cap."""
     return max(0, min(target_stock - current_stock, reservation_cap - current_stock))
+
+
+@dataclass(frozen=True)
+class ServiceStock:
+    """1サービス分の予約在庫と、そこから決まる空き枠・補充必要数。"""
+
+    service: str
+    stock: int
+    room: int
+    need: int
+
+
+def plan_service_stock(
+    *, scheduled: Mapping[str, int], limit: int, target_stock: int
+) -> dict[str, ServiceStock]:
+    """サービスごとに独立して在庫・空き枠・必要数を出す。
+
+    かつては全サービスの最小値から補充数を1つだけ算出していた。そのため充足している
+    サービスが律速となり、予約が欠けているサービスの在庫が永久に回復しなかった
+    （2026-10-09: Pinterestが9/9でInstagramが6/9のまま停止）。サービス間で数値を
+    混ぜず、呼び出し側が不足しているサービスだけを補充できるようにする。
+    """
+    return {
+        service: ServiceStock(
+            service=service,
+            stock=stock,
+            room=max(0, limit - stock),
+            need=refill_amount(
+                current_stock=stock, target_stock=target_stock, reservation_cap=limit
+            ),
+        )
+        for service, stock in scheduled.items()
+    }
 
 
 def _read_manifest(path: Path) -> dict[str, object]:

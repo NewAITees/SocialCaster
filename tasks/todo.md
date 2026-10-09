@@ -245,7 +245,10 @@
 - [x] prompt.md から memory への言及を削除し、claude の追記を止めた
 - [x] run.ps1 の追記は残した（コストゼロ、30日より古い stop reason の唯一の保存先）
 - [x] 上書き事故の教訓を lessons.md へ転記した
-- [ ] 弾かれた Instagram 4件が、Buffer の枠が空いたとき自動再送されるか確認する
+- [x] 弾かれた Instagram 4件が、Buffer の枠が空いたとき自動再送されるか確認する
+  - 自動再送されない。`publish_social_once` は IG≠SUCCESS を全件リトライする設計だが、
+    step3 は `refill > 0` の後ろにあり、Pinterest充足で refill=0 になると到達しない
+  - 2026-10-09 時点で Buffer の IG 枠は 6/10（空き4枠）あり、枠不足ではない
 - [ ] ログ保持期間30日を延ばすか判断する（本日38件を自動削除）
 
 ## 2026-10-08 ディスク整理
@@ -264,3 +267,33 @@
   - `posts.archive_image_path` の201行は実ファイルを失ったが、投稿は NewAITees の公開URLを使うため影響なし
 - [x] 回収したディスクは合計約1.7GB（archive 1.16GB ＋ _site 575MB）
 - [ ] `archive_image_path` の扱いを決める（記録として不正確になった。NULL にするか、列ごと廃止するか、現状維持か）
+
+## 2026-10-09 Instagram在庫が回復しない問題の修正
+調査結果: `STOCK_INSTAGRAM=7 TARGET=9` でも「target stock reached」で停止していた原因は、
+`status.py` の `REFILL` が有効サービスの最小値を取るため、Pinterest(9/9充足)が律速して
+refill=0 に固着していたこと。refill=0 で `run.ps1` が iteration 1 で break するため、
+step2/step3 のリトライ（MEDIA_FAILED 5件・IG_FAILED 4件）に永久に到達しない。
+
+Buffer APIの実地確認(2026-10-09): 予約の中身は `posts(filter:{channelIds,status:[scheduled]})`
+で取得可能。上限は `account.organizations.limits.scheduledPosts` が 10 を返し、
+`BUFFER_RESERVATION_CAP` のハードコードは不要。スキーマ説明は組織単位だが実際はチャンネル単位。
+
+- [x] `feat:` BufferClientに `scheduled_posts` / `scheduled_post_limit` / `organization_id` を追加する（54fb108）
+- [x] `fix:` publish_social_once のリトライをサービス別の空き枠で打ち切る（5664cbd）
+- [x] `feat:` status.py の在庫・空き枠をBuffer実数にし、サービス別の NEED/ROOM を出力する（min撤廃）（5f78dc6、`social_caster.stock` モジュール新設）
+- [x] `fix:` run.ps1 の停止条件をサービス別に分離し、在庫充足時でも失敗リトライを実行する（d7f4743）
+- [x] `feat:` 不足しているサービスだけを補充する（prompt.md の `{{SERVICES}}`、IG専用manifest。Pinterest専用は未実装のまま明示）（d7f4743）
+- [x] `chore:` `BUFFER_RESERVATION_CAP` を config.py / .env.example から削除する（585ff4a）
+- [x] `fix:` `_select_media_manifests` の `retry_take` が `count=1` で常に0になる境界を踏み、run.ps1の
+      リトライ専用呼び出し（count=1）が実際には何も処理していなかったのを発見・修正（f317dd1、count>=2に）
+- [x] 滞留分を回復させた（手動で `publish-media` / `publish-social` を反復実行。セッションの低メモリで
+      2回バックグラウンドジョブがkillされたが、DB・NewAITeesとも中途半端な状態にはならず再実行で解消）
+  - MEDIA_FAILED: 5→0（id 189-193 全件 SUCCESS）
+  - IG_FAILED: 4→0（id 200-203 全件 SUCCESS）
+  - 最終状態: STOCK_INSTAGRAM=10/10, STOCK_PINTEREST=9/9。Buffer実数とも完全一致を確認済み
+- [ ] ブランチ `fix/per-service-stock-refill`（8コミット）を main へマージする
+
+### 範囲外（指示があれば着手）
+- [ ] `media_error` の日本語が文字化けして保存されている（subprocessのstderrデコード）
+- [ ] `id 203` の `last_error` が空で、Instagram失敗の理由を取り逃がしている
+- [ ] Xチャンネルは `Actor can not access the specified channels` で参照不可（ENABLE_TWITTER=false のため実害なし）

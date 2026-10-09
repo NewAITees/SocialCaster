@@ -185,81 +185,117 @@ $automationExit = 0
 try {
     for ($iteration = 1; $iteration -le $maxIterations; $iteration++) {
         $status = Get-Status
-        $refill = $status.REFILL
+        $needInstagram = $status.NEED_INSTAGRAM
+        $pinterestEnabled = $status.PINTEREST_ENABLED -eq 1
+        $needPinterest = if ($pinterestEnabled) { $status.NEED_PINTEREST } else { 0 }
+        # サービスごとの不足・空き枠は互いに混ぜない。片方が充足していても、
+        # もう片方の補充・リトライを止めてはならない。
+        $hasFailedBacklog = ($status.MEDIA_FAILED -gt 0) -or ($status.IG_FAILED -gt 0) -or `
+            ($pinterestEnabled -and $status.PIN_FAILED -gt 0)
         Add-Content -Path $logFile -Value (
-            "==== iteration {0}: stock_instagram={1} stock_pinterest={2} target={3} cap={4} refill={5} ====" -f `
-                $iteration, $status.STOCK_INSTAGRAM, $status.STOCK_PINTEREST, `
-                $status.TARGET_STOCK, $status.RESERVATION_CAP, $refill
+            "==== iteration {0}: instagram(stock={1} room={2} need={3}) pinterest(stock={4} room={5} need={6}) limit={7} failed_backlog={8} ====" -f `
+                $iteration, $status.STOCK_INSTAGRAM, $status.ROOM_INSTAGRAM, $needInstagram, `
+                $status.STOCK_PINTEREST, $status.ROOM_PINTEREST, $needPinterest, `
+                $status.SCHEDULED_LIMIT, $hasFailedBacklog
         )
-        if ($refill -le 0) {
-            $stopReason = "target stock reached"
+
+        if ($needInstagram -le 0 -and -not $hasFailedBacklog) {
+            if ($needPinterest -gt 0) {
+                # Pinterest専用の補充manifestは未実装（instagram_textが必須のため）。
+                # Instagramの需要がない限り、この不足は自動では解消されない。
+                $stopReason = "target stock reached (instagram); pinterest-only backfill not implemented, NEED_PINTEREST=$needPinterest remains"
+            }
+            else {
+                $stopReason = "target stock reached"
+            }
             break
         }
 
-        $unprocessedImages = @(
-            Get-ChildItem -Path $inbox -File -ErrorAction SilentlyContinue |
-                Where-Object {
-                    $_.Extension -in ".png", ".jpg", ".jpeg" -and
-                    -not (Test-Path (Join-Path $manifestDir ($_.Name + ".json")))
+        $jsonCount = 0
+        if ($needInstagram -gt 0) {
+            $unprocessedImages = @(
+                Get-ChildItem -Path $inbox -File -ErrorAction SilentlyContinue |
+                    Where-Object {
+                        $_.Extension -in ".png", ".jpg", ".jpeg" -and
+                        -not (Test-Path (Join-Path $manifestDir ($_.Name + ".json")))
+                    }
+            )
+            if ($unprocessedImages.Count -eq 0) {
+                if (-not $hasFailedBacklog) {
+                    $stopReason = "no unprocessed images in input/inbox"
+                    break
                 }
-        )
-        if ($unprocessedImages.Count -eq 0) {
-            $stopReason = "no unprocessed images in input/inbox"
-            break
-        }
-        $count = [Math]::Min($refill, $unprocessedImages.Count)
-        $prompt = (Get-Content $promptFile -Raw -Encoding UTF8).Replace("{{COUNT}}", [string]$count)
+                Add-Content -Path $logFile -Value "==== no unprocessed images; retrying existing failures only ===="
+            }
+            else {
+                $jsonCount = [Math]::Min($needInstagram, $unprocessedImages.Count)
+                $services = if ($needPinterest -gt 0) { "instagram,pinterest" } else { "instagram" }
+                $prompt = (Get-Content $promptFile -Raw -Encoding UTF8).
+                    Replace("{{COUNT}}", [string]$jsonCount).
+                    Replace("{{SERVICES}}", $services)
 
-        # claudeはJSON生成だけを担当し、公開・投稿はPythonを直接実行する。
-        Add-Content -Path $logFile -Value "==== step1: json generation (claude), count=$count ===="
-        $savedErrorActionPreference = $ErrorActionPreference
-        try {
-            $ErrorActionPreference = "Continue"
-            $prompt | claude -p --setting-sources project --add-dir $root `
-                --allowedTools "Read Edit Write Glob" --output-format text 2>&1 |
-                Out-File -FilePath $logFile -Encoding utf8 -Append
-            $claudeExit = $LASTEXITCODE
-        }
-        finally {
-            $ErrorActionPreference = $savedErrorActionPreference
-        }
-        if ($claudeExit -ne 0) { throw "claude JSON generation failed (exit=$claudeExit)" }
+                # claudeはJSON生成だけを担当し、公開・投稿はPythonを直接実行する。
+                Add-Content -Path $logFile -Value "==== step1: json generation (claude), count=$jsonCount, services=$services ===="
+                $savedErrorActionPreference = $ErrorActionPreference
+                try {
+                    $ErrorActionPreference = "Continue"
+                    $prompt | claude -p --setting-sources project --add-dir $root `
+                        --allowedTools "Read Edit Write Glob" --output-format text 2>&1 |
+                        Out-File -FilePath $logFile -Encoding utf8 -Append
+                    $claudeExit = $LASTEXITCODE
+                }
+                finally {
+                    $ErrorActionPreference = $savedErrorActionPreference
+                }
+                if ($claudeExit -ne 0) { throw "claude JSON generation failed (exit=$claudeExit)" }
 
-        Merge-PendingMemory
-        Remove-WorkspaceJunk
+                Merge-PendingMemory
+                Remove-WorkspaceJunk
 
-        Add-Content -Path $logFile -Value "==== validation: verify-manifests ===="
-        $savedErrorActionPreference = $ErrorActionPreference
-        try {
-            $ErrorActionPreference = "Continue"
-            & $python $verifyManifests 2>&1 |
-                Out-File -FilePath $logFile -Encoding utf8 -Append
-            $validationExit = $LASTEXITCODE
+                Add-Content -Path $logFile -Value "==== validation: verify-manifests ===="
+                $savedErrorActionPreference = $ErrorActionPreference
+                try {
+                    $ErrorActionPreference = "Continue"
+                    & $python $verifyManifests 2>&1 |
+                        Out-File -FilePath $logFile -Encoding utf8 -Append
+                    $validationExit = $LASTEXITCODE
+                }
+                finally {
+                    $ErrorActionPreference = $savedErrorActionPreference
+                }
+                if ($validationExit -ne 0) { throw "manifest validation failed (exit=$validationExit)" }
+            }
         }
-        finally {
-            $ErrorActionPreference = $savedErrorActionPreference
-        }
-        if ($validationExit -ne 0) { throw "manifest validation failed (exit=$validationExit)" }
 
-        Add-Content -Path $logFile -Value "==== step2: publish-media, count=$count ===="
-        $savedErrorActionPreference = $ErrorActionPreference
-        try {
-            $ErrorActionPreference = "Continue"
-            & $python -m social_caster.cli publish-media --count $count 2>&1 |
-                Out-File -FilePath $logFile -Encoding utf8 -Append
-            $mediaExit = $LASTEXITCODE
+        # _select_media_manifests の retry_take は min(1, 件数, count-1) で決まるため、
+        # count=1 では count-1=0 となりリトライ枠が常に0になる（新規1件を必ず通すための
+        # ガードで、count<=1のときはリトライを一切使わない設計）。MEDIA_FAILEDの滞留を
+        # 新規需要が0の回でも拾うには、countを最低2にしてリトライ枠を確保する。
+        $mediaCount = if ($status.MEDIA_FAILED -gt 0) { [Math]::Max($jsonCount, 2) } else { $jsonCount }
+        if ($mediaCount -gt 0) {
+            Add-Content -Path $logFile -Value "==== step2: publish-media, count=$mediaCount ===="
+            $savedErrorActionPreference = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = "Continue"
+                & $python -m social_caster.cli publish-media --count $mediaCount 2>&1 |
+                    Out-File -FilePath $logFile -Encoding utf8 -Append
+                $mediaExit = $LASTEXITCODE
+            }
+            finally {
+                $ErrorActionPreference = $savedErrorActionPreference
+            }
+            if ($mediaExit -ne 0) { throw "publish-media failed (exit=$mediaExit)" }
         }
-        finally {
-            $ErrorActionPreference = $savedErrorActionPreference
-        }
-        if ($mediaExit -ne 0) { throw "publish-media failed (exit=$mediaExit)" }
 
+        # publish-social は呼び出しごとにBufferの空き枠を自分で読み、サービス別に
+        # 試行を打ち切る（social_caster.cli）。count は新規へ時刻を割り当てる件数だけを
+        # 決め、既存の未成立予約のリトライはcountに関わらず毎回走る。
         # ENABLE_TWITTER=false の間はXへ投稿せず、Instagramだけを予約する。
-        Add-Content -Path $logFile -Value "==== step3: publish-social, count=$count ===="
+        Add-Content -Path $logFile -Value "==== step3: publish-social, count=$jsonCount ===="
         $savedErrorActionPreference = $ErrorActionPreference
         try {
             $ErrorActionPreference = "Continue"
-            & $python -m social_caster.cli publish-social --count $count 2>&1 |
+            & $python -m social_caster.cli publish-social --count $jsonCount 2>&1 |
                 Out-File -FilePath $logFile -Encoding utf8 -Append
             $socialExit = $LASTEXITCODE
         }
@@ -271,7 +307,12 @@ try {
 
     if ($stopReason -eq "maximum iteration cap reached") {
         $finalStatus = Get-Status
-        if ($finalStatus.REFILL -le 0) { $stopReason = "target stock reached" }
+        $finalPinterestEnabled = $finalStatus.PINTEREST_ENABLED -eq 1
+        $finalHasFailedBacklog = ($finalStatus.MEDIA_FAILED -gt 0) -or ($finalStatus.IG_FAILED -gt 0) -or `
+            ($finalPinterestEnabled -and $finalStatus.PIN_FAILED -gt 0)
+        if ($finalStatus.NEED_INSTAGRAM -le 0 -and -not $finalHasFailedBacklog) {
+            $stopReason = "target stock reached"
+        }
     }
 }
 catch {
