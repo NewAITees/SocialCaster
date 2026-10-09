@@ -117,6 +117,21 @@ class BufferClient:
             for channel in channels
         ]
 
+    def organization_id(self) -> str:
+        """このAPIキーが属する組織IDを返す。
+
+        複数ある場合は選ばずに失敗させる。どちらの在庫を見ているか分からないまま
+        予約枠を判断すると、黙って別組織の数値で動くことになる。
+        """
+        data = self.execute("query Organizations { account { organizations { id } } }")
+        organizations = (data.get("account") or {}).get("organizations") or []
+        if len(organizations) != 1:
+            raise BufferApiError(
+                "Buffer APIの組織をひとつに特定できません"
+                f"（{len(organizations)}件）。BUFFER_* の対象組織を明示してください"
+            )
+        return str(organizations[0]["id"])
+
     def scheduled_posts(self, *, organization_id: str, channel_id: str) -> list[dict[str, Any]]:
         """チャンネルの予約済み投稿をBufferから全件取得する。
 

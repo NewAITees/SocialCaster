@@ -11,6 +11,7 @@ from social_caster.batch import (
     DailyBatch,
     FolderLayout,
     _next_schedule_slots,
+    plan_service_stock,
     refill_amount,
 )
 from social_caster.database import connect, get_post_by_source_key
@@ -753,3 +754,28 @@ def test_social_phase_is_unbounded_when_no_room_is_given() -> None:
     batch.publish_social_once()
 
     assert len(provider.calls) == 3
+
+
+def test_plan_service_stock_keeps_services_independent() -> None:
+    # 充足しているサービスが、不足しているサービスの補充を止めてはならない。
+    plan = plan_service_stock(scheduled={"instagram": 6, "pinterest": 9}, limit=10, target_stock=9)
+
+    assert plan["instagram"].need == 3
+    assert plan["instagram"].room == 4
+    assert plan["pinterest"].need == 0
+    assert plan["pinterest"].room == 1
+
+
+def test_plan_service_stock_clamps_need_to_the_room() -> None:
+    plan = plan_service_stock(scheduled={"instagram": 8}, limit=10, target_stock=12)
+
+    assert plan["instagram"].need == 2
+    assert plan["instagram"].room == 2
+
+
+def test_plan_service_stock_never_goes_negative_past_the_limit() -> None:
+    plan = plan_service_stock(scheduled={"instagram": 11}, limit=10, target_stock=9)
+
+    assert plan["instagram"].need == 0
+    assert plan["instagram"].room == 0
+    assert plan["instagram"].stock == 11

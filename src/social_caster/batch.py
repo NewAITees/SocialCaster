@@ -364,6 +364,39 @@ def refill_amount(*, current_stock: int, target_stock: int, reservation_cap: int
     return max(0, min(target_stock - current_stock, reservation_cap - current_stock))
 
 
+@dataclass(frozen=True)
+class ServiceStock:
+    """1サービス分の予約在庫と、そこから決まる空き枠・補充必要数。"""
+
+    service: str
+    stock: int
+    room: int
+    need: int
+
+
+def plan_service_stock(
+    *, scheduled: Mapping[str, int], limit: int, target_stock: int
+) -> dict[str, ServiceStock]:
+    """サービスごとに独立して在庫・空き枠・必要数を出す。
+
+    かつては全サービスの最小値から補充数を1つだけ算出していた。そのため充足している
+    サービスが律速となり、予約が欠けているサービスの在庫が永久に回復しなかった
+    （2026-10-09: Pinterestが9/9でInstagramが6/9のまま停止）。サービス間で数値を
+    混ぜず、呼び出し側が不足しているサービスだけを補充できるようにする。
+    """
+    return {
+        service: ServiceStock(
+            service=service,
+            stock=stock,
+            room=max(0, limit - stock),
+            need=refill_amount(
+                current_stock=stock, target_stock=target_stock, reservation_cap=limit
+            ),
+        )
+        for service, stock in scheduled.items()
+    }
+
+
 def _read_manifest(path: Path) -> dict[str, object]:
     with path.open(encoding="utf-8") as file:
         value = json.load(file)

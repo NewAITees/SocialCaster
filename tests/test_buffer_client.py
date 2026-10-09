@@ -153,3 +153,38 @@ def test_scheduled_post_limit_rejects_missing_limit(monkeypatch: Any) -> None:
 
     with pytest.raises(BufferApiError):
         client.scheduled_post_limit(organization_id="org-1")
+
+
+def test_organization_id_returns_the_single_organization(monkeypatch: Any) -> None:
+    client = BufferClient("secret")
+
+    def fake_execute(query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+        return {"account": {"organizations": [{"id": "org-1"}]}}
+
+    monkeypatch.setattr(client, "execute", fake_execute)
+
+    assert client.organization_id() == "org-1"
+
+
+def test_organization_id_refuses_to_guess_between_organizations(monkeypatch: Any) -> None:
+    client = BufferClient("secret")
+
+    def fake_execute(query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+        return {"account": {"organizations": [{"id": "org-1"}, {"id": "org-2"}]}}
+
+    monkeypatch.setattr(client, "execute", fake_execute)
+
+    with pytest.raises(BufferApiError):
+        client.organization_id()
+
+
+def test_organization_id_rejects_an_empty_account(monkeypatch: Any) -> None:
+    client = BufferClient("secret")
+
+    def fake_execute(query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+        return {"account": {"organizations": []}}
+
+    monkeypatch.setattr(client, "execute", fake_execute)
+
+    with pytest.raises(BufferApiError):
+        client.organization_id()
