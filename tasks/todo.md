@@ -278,13 +278,20 @@ Buffer APIの実地確認(2026-10-09): 予約の中身は `posts(filter:{channel
 で取得可能。上限は `account.organizations.limits.scheduledPosts` が 10 を返し、
 `BUFFER_RESERVATION_CAP` のハードコードは不要。スキーマ説明は組織単位だが実際はチャンネル単位。
 
-- [ ] `feat:` BufferClientに `get_scheduled_posts` / `get_scheduled_post_limit` を追加する
-- [ ] `feat:` status.py の在庫・空き枠をBuffer実数にし、サービス別の NEED/ROOM を出力する（min撤廃）
-- [ ] `fix:` publish_social_once のリトライをサービス別の空き枠で打ち切る
-- [ ] `feat:` 不足しているサービスだけを補充する（IG専用manifest。Pinterest専用は作らない）
-- [ ] `fix:` 在庫充足時でも失敗リトライを実行するよう停止条件を分離する
-- [ ] `chore:` `BUFFER_RESERVATION_CAP` を .env / .env.example から削除する
-- [ ] 滞留分を回復させる（id 189-193 MEDIA_FAILED、id 200-203 IG_FAILED）
+- [x] `feat:` BufferClientに `scheduled_posts` / `scheduled_post_limit` / `organization_id` を追加する（54fb108）
+- [x] `fix:` publish_social_once のリトライをサービス別の空き枠で打ち切る（5664cbd）
+- [x] `feat:` status.py の在庫・空き枠をBuffer実数にし、サービス別の NEED/ROOM を出力する（min撤廃）（5f78dc6、`social_caster.stock` モジュール新設）
+- [x] `fix:` run.ps1 の停止条件をサービス別に分離し、在庫充足時でも失敗リトライを実行する（d7f4743）
+- [x] `feat:` 不足しているサービスだけを補充する（prompt.md の `{{SERVICES}}`、IG専用manifest。Pinterest専用は未実装のまま明示）（d7f4743）
+- [x] `chore:` `BUFFER_RESERVATION_CAP` を config.py / .env.example から削除する（585ff4a）
+- [x] `fix:` `_select_media_manifests` の `retry_take` が `count=1` で常に0になる境界を踏み、run.ps1の
+      リトライ専用呼び出し（count=1）が実際には何も処理していなかったのを発見・修正（f317dd1、count>=2に）
+- [x] 滞留分を回復させた（手動で `publish-media` / `publish-social` を反復実行。セッションの低メモリで
+      2回バックグラウンドジョブがkillされたが、DB・NewAITeesとも中途半端な状態にはならず再実行で解消）
+  - MEDIA_FAILED: 5→0（id 189-193 全件 SUCCESS）
+  - IG_FAILED: 4→0（id 200-203 全件 SUCCESS）
+  - 最終状態: STOCK_INSTAGRAM=10/10, STOCK_PINTEREST=9/9。Buffer実数とも完全一致を確認済み
+- [ ] ブランチ `fix/per-service-stock-refill`（8コミット）を main へマージする
 
 ### 範囲外（指示があれば着手）
 - [ ] `media_error` の日本語が文字化けして保存されている（subprocessのstderrデコード）
