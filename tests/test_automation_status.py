@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from social_caster.buffer_client import BufferApiError
-from social_caster.database import add_post, connect, mark_success
+from social_caster.database import add_post, connect, mark_failed, mark_success
 
 
 def _load_status_module() -> ModuleType:
@@ -161,6 +161,52 @@ def test_status_counts_media_and_social_outcomes_from_the_local_db(
     output = capsys.readouterr().out
     assert "MEDIA_SUCCESS=3" in output
     assert "IG_SUCCESS=3" in output
+    assert "PIN_SUCCESS=0" in output
+    assert "PIN_FAILED=0" in output
+
+
+def test_status_counts_pinterest_failures_for_the_retry_backlog_check(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # run.ps1 はPIN_FAILEDをリトライ継続の判断に使う。Instagramが充足していても
+    # Pinterestの失敗分が残っていることを見失ってはならない。
+    database_path = tmp_path / "posts.db"
+    connection = connect(database_path)
+    post_id = add_post(
+        connection,
+        image_path="images/pin-fail.jpg",
+        image_url="https://example.com/pin-fail.jpg",
+        instagram_text="instagram",
+        twitter_text="twitter",
+        category="other",
+        pinterest_text="pinterest",
+        pinterest_title="title",
+        publish_at="2999-01-01T00:00:00+00:00",
+    )
+    mark_failed(
+        connection, post_id=post_id, service="pinterest", error="Scheduled posts limit reached"
+    )
+    connection.close()
+    _common_env(monkeypatch)
+    monkeypatch.setenv("DATABASE_PATH", str(database_path))
+    monkeypatch.setenv("ENABLE_PINTEREST", "true")
+    monkeypatch.setenv("BUFFER_PINTEREST_CHANNEL_ID", "pin-channel")
+    monkeypatch.setenv("BUFFER_PINTEREST_BOARD_DEFAULT", "board-1")
+
+    module = _load_status_module()
+
+    def init_with_stock(self: FakeBufferClient, api_key: str) -> None:
+        self.api_key = api_key
+        self.scheduled = {"ig-channel": 9, "pin-channel": 9}
+        self.limit = 10
+
+    monkeypatch.setattr(FakeBufferClient, "__init__", init_with_stock)
+    monkeypatch.setattr(module, "BufferClient", FakeBufferClient)
+
+    module.main()
+
+    output = capsys.readouterr().out
+    assert "PIN_FAILED=1" in output
 
 
 def test_status_does_not_fall_back_to_local_estimates_when_buffer_fails(

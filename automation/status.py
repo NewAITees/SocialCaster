@@ -44,6 +44,8 @@ def main() -> None:
         "IG_FAILED": count("instagram_status = 'FAILED'"),
         "X_SUCCESS": count("twitter_status = 'SUCCESS'"),
         "X_FAILED": count("twitter_status = 'FAILED'"),
+        "PIN_SUCCESS": count("pinterest_status = 'SUCCESS'"),
+        "PIN_FAILED": count("pinterest_status = 'FAILED'"),
     }
 
     client = BufferClient(settings.buffer_api_key)
