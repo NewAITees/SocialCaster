@@ -779,3 +779,31 @@ def test_plan_service_stock_never_goes_negative_past_the_limit() -> None:
     assert plan["instagram"].need == 0
     assert plan["instagram"].room == 0
     assert plan["instagram"].stock == 11
+
+
+def test_media_retry_slot_is_starved_when_count_is_one() -> None:
+    # retry_take = min(MEDIA_RETRY_SLOTS, 件数, count-1) なので count=1 では
+    # count-1=0 となり、リトライ専用（新規0件）の呼び出しでも一切進まない。
+    # 2026-10-09、run.ps1がMEDIA_FAILEDの滞留だけを拾うつもりで count=1 を渡し、
+    # 実際には何も処理されなかった。この境界を明文化する回帰テスト。
+    root = Path("tests/_runtime_media_retry_starved")
+    try:
+        _write_named_manifest(root, "only_failed")
+        connection = connect(":memory:")
+        failing = {"only_failed.png"}
+
+        DailyBatch(
+            connection, None, FolderLayout(root), SelectiveFailingPublisher(failing)
+        ).publish_media_once(1)
+
+        retry = SelectiveFailingPublisher(set())
+        DailyBatch(connection, None, FolderLayout(root), retry).publish_media_once(1)
+
+        assert retry.published == []
+
+        retry_with_room = SelectiveFailingPublisher(set())
+        DailyBatch(connection, None, FolderLayout(root), retry_with_room).publish_media_once(2)
+
+        assert retry_with_room.published == ["only_failed.png"]
+    finally:
+        shutil.rmtree(root, ignore_errors=True)

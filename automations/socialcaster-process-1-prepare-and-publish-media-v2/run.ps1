@@ -267,9 +267,11 @@ try {
             }
         }
 
-        # MEDIA_FAILED の滞留分は、新規が0件でもリトライ枠(MEDIA_RETRY_SLOTS=1)を
-        # 使えるよう最低1件のcountを渡す。新規需要がなければpublish-mediaを呼ばない。
-        $mediaCount = if ($jsonCount -gt 0) { $jsonCount } elseif ($status.MEDIA_FAILED -gt 0) { 1 } else { 0 }
+        # _select_media_manifests の retry_take は min(1, 件数, count-1) で決まるため、
+        # count=1 では count-1=0 となりリトライ枠が常に0になる（新規1件を必ず通すための
+        # ガードで、count<=1のときはリトライを一切使わない設計）。MEDIA_FAILEDの滞留を
+        # 新規需要が0の回でも拾うには、countを最低2にしてリトライ枠を確保する。
+        $mediaCount = if ($status.MEDIA_FAILED -gt 0) { [Math]::Max($jsonCount, 2) } else { $jsonCount }
         if ($mediaCount -gt 0) {
             Add-Content -Path $logFile -Value "==== step2: publish-media, count=$mediaCount ===="
             $savedErrorActionPreference = $ErrorActionPreference
