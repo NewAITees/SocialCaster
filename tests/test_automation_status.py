@@ -231,3 +231,45 @@ def test_status_does_not_fall_back_to_local_estimates_when_buffer_fails(
 
     with pytest.raises(BufferApiError):
         module.main()
+
+
+def test_status_counts_media_published_but_never_scheduled_posts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # media_status=SUCCESS だがpublish_atが空のまま残る投稿は、publish-socialへ
+    # 十分なcountを渡さない限り永久にBuffer予約枠に入らない。run.ps1がこの値を見て
+    # countを決めるため、ローカルDBだけで数えられる必要がある。
+    database_path = tmp_path / "posts.db"
+    connection = connect(database_path)
+    post_id = add_post(
+        connection,
+        image_path="images/unscheduled.jpg",
+        image_url="https://example.com/unscheduled.jpg",
+        instagram_text="instagram",
+        twitter_text="twitter",
+        category="other",
+        pinterest_text=None,
+        pinterest_title=None,
+        publish_at="",
+    )
+    connection.execute("UPDATE posts SET media_status = 'SUCCESS' WHERE id = ?", (post_id,))
+    connection.commit()
+    connection.close()
+    _common_env(monkeypatch)
+    monkeypatch.setenv("DATABASE_PATH", str(database_path))
+    monkeypatch.setenv("ENABLE_PINTEREST", "false")
+
+    module = _load_status_module()
+
+    def init_with_stock(self: FakeBufferClient, api_key: str) -> None:
+        self.api_key = api_key
+        self.scheduled = {"ig-channel": 0}
+        self.limit = 10
+
+    monkeypatch.setattr(FakeBufferClient, "__init__", init_with_stock)
+    monkeypatch.setattr(module, "BufferClient", FakeBufferClient)
+
+    module.main()
+
+    output = capsys.readouterr().out
+    assert "UNSCHEDULED=1" in output

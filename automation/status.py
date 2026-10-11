@@ -46,6 +46,11 @@ def main() -> None:
         "X_FAILED": count("twitter_status = 'FAILED'"),
         "PIN_SUCCESS": count("pinterest_status = 'SUCCESS'"),
         "PIN_FAILED": count("pinterest_status = 'FAILED'"),
+        # media_status=SUCCESSなのにpublish_atが空のまま残る投稿。publish-socialの
+        # unscheduled_posts(limit=count)はこのcountを超えた分を何日経っても拾わない
+        # ため、run.ps1はこの値を見てcountを決める必要がある（2026-10-11、最大10日分の
+        # 滞留が発覚）。
+        "UNSCHEDULED": count("media_status = 'SUCCESS' AND publish_at = ''"),
     }
 
     client = BufferClient(settings.buffer_api_key)

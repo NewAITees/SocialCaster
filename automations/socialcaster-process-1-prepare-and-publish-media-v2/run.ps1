@@ -290,12 +290,18 @@ try {
         # publish-social は呼び出しごとにBufferの空き枠を自分で読み、サービス別に
         # 試行を打ち切る（social_caster.cli）。count は新規へ時刻を割り当てる件数だけを
         # 決め、既存の未成立予約のリトライはcountに関わらず毎回走る。
+        # countをjsonCountだけに任せると、publish-mediaのリトライで公開に成功した
+        # 投稿（今日の新規需要には含まれない）が時刻を一切割り当てられず、
+        # media_status=SUCCESSのまま何日も滞留する（2026-10-11、最大14件・10日分で発覚）。
+        # 時刻の割り当て自体はローカルDB操作でBufferを消費しないため、滞留分を毎回
+        # 全件スケジュールしても安全（実際のBuffer消費はこの後のroom判定で制限される）。
+        $socialCount = [Math]::Max($jsonCount, $status.UNSCHEDULED)
         # ENABLE_TWITTER=false の間はXへ投稿せず、Instagramだけを予約する。
-        Add-Content -Path $logFile -Value "==== step3: publish-social, count=$jsonCount ===="
+        Add-Content -Path $logFile -Value "==== step3: publish-social, count=$socialCount ===="
         $savedErrorActionPreference = $ErrorActionPreference
         try {
             $ErrorActionPreference = "Continue"
-            & $python -m social_caster.cli publish-social --count $jsonCount 2>&1 |
+            & $python -m social_caster.cli publish-social --count $socialCount 2>&1 |
                 Out-File -FilePath $logFile -Encoding utf8 -Append
             $socialExit = $LASTEXITCODE
         }
