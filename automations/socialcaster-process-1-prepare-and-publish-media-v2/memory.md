@@ -1158,3 +1158,39 @@ monochrome_20260918_031210_0041.png 〜 monochrome_20260918_032819_0105.png（26
   - rpg_action_bestiary_20260901_152021_0011.png — カテゴリ: horror
 - 備考: 今回の指定件数は4件。Globでプレフィックスごとに inbox と manifests の件数・ファイル名を突き合わせたところ、deconstructed_face_architecture/face_fragment_minimalism/facial_afterimage_rupture/facial_fragment_space/facial_signal_field/fragmented_face_geometry/monochrome/random の各プレフィックスはすべて同名manifestが揃っている一方、rpg_action_bestiary/ruined_city_overwatch/specimen_archive_plate/ukiyoe_cosmic_wave の4プレフィックスはmanifestが1件も存在しないことが判明。アルファベット順で最も早いrpg_action_bestiary内の先頭4枚（ファイル名＝タイムスタンプ順）を対象として選定した（.part該当なし）。既存JSONの再生成なし・画像移動なし。内容はいずれもダークファンタジー風のモンスター/クリーチャーデザイン（白煙と角兜の漆黒の戦士／白い繊維状の筋が絡む異形の肉塊／角を持つ頭巾姿の亡霊／ティールの靄に立つ棘足の岩山怪物）で、フォルダ名はrpg風だが絵柄はホラー寄りのため全件「horror」とした。検証: 4件ともGlobで画像・JSONファイル双方の存在とimage名の一致を確認。カテゴリは全件有効値（horror）。instagram_textは日本語本文67〜91字・英語本文230〜246字（手動の10字区切りによる文字数計算、いずれも250字以内、英語本文末尾にXリンク https://x.com/New_AI_Tees を含む）。ハッシュタグはGrep（`#[a-z0-9]+`、-oオプション、output_mode=content）で4件個別に抽出し、instagram_text側・pinterest_text側ともに各20個（必須4個 #stablediffusion #sd #newaitees #aiart を含む・重複なし・すべて小文字）、twitter_text側は各2個（リンクなし、280字以内）であることを確認。pinterest_textは現行prompt.md仕様（500字以内の日本語本文、ハッシュタグ扱いはinstagram_textの日本語本文に準じる）に従い、instagram_textの日本語本文と同一の文章＋同一20タグで構成した。pinterest_titleも日本語（9〜14字）で作成。Grepで`publish_at`キーが4件とも存在しないことを確認。本セッションでは複合Bashコマンド（`&&`・パイプを含む連結）やPowerShellの配列リテラル・サブ式・スクリプトブロックがいずれもサンドボックス承認待ちでブロックされ、memory.mdへの直接Edit権限も許可されなかったため、Glob（プレフィックス絞り込み）とGrep（`-o`付き抽出）・Read/Writeツールの組み合わせのみで選定・作成・検証を行い、本記録は待避ファイルとして保存した（後日 memory.md 末尾へ、未マージの memory_pending_20261008.md・memory_pending_20261008b.md とあわせて時系列順にマージ要）。
 
+## 2026-10-09 07:00:04
+- stop reason: target stock reached
+- log: 20261009_070002.log
+
+## 2026-10-09 07:00:04
+- publish-media exit: 0
+- publish-social exit: 0
+- log: 20261009_070002.log
+
+## 2026-10-10 07:13:05
+- stop reason: target stock reached (instagram); pinterest-only backfill not implemented, NEED_PINTEREST=2 remains
+- log: 20261010_070001.log
+
+## 2026-10-10 07:13:06
+- publish-media exit: 0
+- publish-social exit: 0
+- log: 20261010_070001.log
+
+## 2026-10-11 07:03:49
+- stop reason: manifest validation failed (exit=1)
+- log: 20261011_070002.log
+
+## 2026-10-11 07:03:49
+- publish-media exit: 0
+- publish-social exit: 0
+- log: 20261011_070002.log
+
+## 2026-10-12 07:12:56
+- stop reason: target stock reached
+- log: 20261012_070001.log
+
+## 2026-10-12 07:12:56
+- publish-media exit: 0
+- publish-social exit: 0
+- log: 20261012_070001.log
+

@@ -4,15 +4,15 @@
 
 ## 固定パス
 
-- 作業ディレクトリ: `C:\projects\SocialCaster`
-- 入力フォルダ: `C:\projects\SocialCaster\input\inbox`
-- 処理済みアーカイブ: `C:\projects\SocialCaster\input\archive`
-- NewAITeesリポジトリ: `C:\projects\SocialCaster\NewAITees`
-- Python実行ファイル: `C:\projects\SocialCaster\.venv\Scripts\python.exe`
-- SQLiteデータベース: `C:\projects\SocialCaster\database\posts.db`
-- 環境設定: `C:\projects\SocialCaster\.env`
+- 作業ディレクトリ: `D:\projects\SocialCaster`
+- 入力フォルダ: `D:\projects\SocialCaster\input\inbox`
+- 処理済みアーカイブ: `D:\projects\SocialCaster\input\archive`
+- NewAITeesリポジトリ: `D:\projects\SocialCaster\NewAITees`
+- Python実行ファイル: `D:\projects\SocialCaster\.venv\Scripts\python.exe`
+- SQLiteデータベース: `D:\projects\SocialCaster\database\posts.db`
+- 環境設定: `D:\projects\SocialCaster\.env`
 
-Codex Scheduledは、ローカルプロジェクトとして`C:\projects\SocialCaster`を指定してください。実行時は、このPCとCodexデスクトップアプリを起動したままにしてください。
+Codex Scheduledは、ローカルプロジェクトとして`D:\projects\SocialCaster`を指定してください。実行時は、このPCとCodexデスクトップアプリを起動したままにしてください。
 
 `.env`の内容、Buffer APIキー、チャンネルIDは画面・チャット・ログへ出力しないでください。
 
@@ -35,17 +35,17 @@ Codex Scheduledは、ローカルプロジェクトとして`C:\projects\SocialC
 
 ### 実行コマンド
 
-作業ディレクトリ`C:\projects\SocialCaster`で、次を実行してください。
+作業ディレクトリ`D:\projects\SocialCaster`で、次を実行してください。
 
 ```powershell
-C:\projects\SocialCaster\.venv\Scripts\python.exe -m social_caster.cli publish-media
+D:\projects\SocialCaster\.venv\Scripts\python.exe -m social_caster.cli publish-media
 ```
 
 ### Codexへの指示文
 
 あなたはSocialCasterのプロセス1担当です。
 
-`C:\projects\SocialCaster\input\inbox`を確認し、画像ファイル名順に未処理画像を最大3枚選んでください。
+`D:\projects\SocialCaster\input\inbox`を確認し、画像ファイル名順に未処理画像を最大3枚選んでください。
 
 対象条件:
 
@@ -53,13 +53,13 @@ C:\projects\SocialCaster\.venv\Scripts\python.exe -m social_caster.cli publish-m
 - `.part`ファイルは対象外にする
 - 画像と同名の`.json`が存在する画像は、JSONを再生成しない
 - 1回の実行で新規JSONを最大3件だけ作成する
-- NewAITeesへの公開成功後、画像とJSONは`C:\projects\SocialCaster\input\archive`へ移動される
+- NewAITeesへの公開成功後、画像とJSONは`D:\projects\SocialCaster\input\archive`へ移動される
 - 投稿日時は設定しない
 
 各画像を目視で分析し、画像と同じフォルダに同名JSONをUTF-8で作成してください。JSONの保存先は必ず次の形式にしてください。
 
 ```text
-C:\projects\SocialCaster\input\inbox\画像ファイル名.json
+D:\projects\SocialCaster\input\inbox\画像ファイル名.json
 ```
 
 ### カテゴリ分類
@@ -176,11 +176,11 @@ JSON作成後、次を確認してください。
 
 ### 実行コマンド
 
-作業ディレクトリ`C:\projects\SocialCaster`で、次を実行してください。
+作業ディレクトリ`D:\projects\SocialCaster`で、次を実行してください。
 
 ```powershell
-Set-Location C:\projects\SocialCaster
-C:\projects\SocialCaster\.venv\Scripts\python.exe -m social_caster.cli publish-social
+Set-Location D:\projects\SocialCaster
+D:\projects\SocialCaster\.venv\Scripts\python.exe -m social_caster.cli publish-social
 ```
 
 ### Codexへの指示文
@@ -227,7 +227,7 @@ APIキー、アクセストークン、秘密情報、本文全文は報告へ�
 
 - 失敗した画像や投稿は移動しない
 - `ready`、`posted`、`failed`フォルダを作成しない
-- 準備中の入力画像とJSONは`C:\projects\SocialCaster\input\inbox`に残す
-- プロセス1で公開成功した画像とJSONは`C:\projects\SocialCaster\input\archive`に置かれる
+- 準備中の入力画像とJSONは`D:\projects\SocialCaster\input\inbox`に残す
+- プロセス1で公開成功した画像とJSONは`D:\projects\SocialCaster\input\archive`に置かれる
 - 状態確認はSQLiteとコマンド結果で行う
 - 同じ失敗を無制限に繰り返さず、エラーを報告して停止する
